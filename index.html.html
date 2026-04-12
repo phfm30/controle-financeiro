@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Controle Financeiro</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
+  .header { background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 16px; text-align: center; border-bottom: 1px solid #2a2a4a; position: sticky; top: 0; z-index: 100; }
+  .header h1 { font-size: 18px; color: #fff; font-weight: 700; }
+  .month-nav { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 10px; }
+  .month-nav button { background: #2a2a4a; border: none; color: #fff; width: 32px; height: 32px; border-radius: 50%; font-size: 16px; cursor: pointer; }
+  .month-nav span { font-size: 16px; font-weight: 600; color: #a78bfa; min-width: 120px; text-align: center; }
+  .sync-status { font-size: 11px; margin-top: 6px; }
+  .sync-status.saving { color: #f59e0b; }
+  .sync-status.saved { color: #10b981; }
+  .sync-status.error { color: #ef4444; }
+  .sync-status.offline { color: #888; }
+  .container { padding: 12px; max-width: 480px; margin: 0 auto; }
+  .summary-card { background: linear-gradient(135deg, #1e1e3a, #252545); border-radius: 16px; padding: 16px; margin-bottom: 16px; border: 1px solid #3a3a5a; }
+  .summary-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #2a2a4a; }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-row.total { margin-top: 8px; padding-top: 12px; border-top: 2px solid #3a3a5a; border-bottom: none; }
+  .summary-label { font-size: 13px; color: #aaa; }
+  .summary-value { font-size: 14px; font-weight: 700; }
+  .summary-value.green { color: #10b981; }
+  .summary-value.red { color: #ef4444; }
+  .saldo-big { text-align: center; margin-top: 12px; padding: 12px; border-radius: 12px; }
+  .saldo-big.positive { background: #052e16; border: 1px solid #10b981; }
+  .saldo-big.negative { background: #2d0a0a; border: 1px solid #ef4444; }
+  .saldo-big.zero { background: #1a1a00; border: 1px solid #f59e0b; }
+  .saldo-big span { font-size: 11px; color: #aaa; display: block; }
+  .saldo-big strong { font-size: 22px; font-weight: 800; }
+  .section { background: #1a1a2e; border-radius: 16px; margin-bottom: 16px; overflow: hidden; border: 1px solid #2a2a4a; }
+  .section-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; cursor: pointer; background: #1e1e38; }
+  .section-header h2 { font-size: 14px; font-weight: 700; color: #fff; }
+  .section-header .total-badge { font-size: 13px; font-weight: 700; color: #a78bfa; }
+  .section-header .arrow { font-size: 12px; color: #666; transition: transform 0.2s; }
+  .section-body { display: none; padding: 12px; }
+  .section-body.open { display: block; }
+  .item-row { display: flex; align-items: center; gap: 8px; padding: 8px; background: #252540; border-radius: 10px; margin-bottom: 8px; }
+  .item-info { flex: 1; min-width: 0; }
+  .item-name { font-size: 13px; font-weight: 600; color: #e0e0e0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-sub { font-size: 11px; color: #888; margin-top: 2px; }
+  .item-value { font-size: 14px; font-weight: 700; color: #a78bfa; white-space: nowrap; }
+  .item-actions { display: flex; gap: 4px; }
+  .btn-icon { background: none; border: none; cursor: pointer; font-size: 15px; padding: 4px; border-radius: 6px; }
+  .cartao-block { background: #1e1e38; border-radius: 12px; margin-bottom: 12px; overflow: hidden; border: 1px solid #2a2a4a; }
+  .cartao-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; cursor: pointer; }
+  .cartao-name { font-size: 14px; font-weight: 700; }
+  .cartao-total { font-size: 13px; font-weight: 700; color: #f59e0b; }
+  .cartao-venc { font-size: 11px; color: #888; }
+  .cartao-body { display: none; padding: 10px; border-top: 1px solid #2a2a4a; }
+  .cartao-body.open { display: block; }
+  .cartao-arrow { font-size: 11px; color: #666; transition: transform 0.2s; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+  .tab { flex: 1; padding: 7px; text-align: center; font-size: 11px; font-weight: 600; border-radius: 8px; cursor: pointer; border: 1px solid #3a3a5a; color: #888; background: #252540; }
+  .tab.active { background: #4c1d95; color: #fff; border-color: #7c3aed; }
+  .parcela-badge { background: #2d1b69; color: #a78bfa; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
+  .recorrente-badge { background: #1a3a2a; color: #10b981; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
+  .avulso-badge { background: #3a2a1a; color: #f59e0b; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
+  .add-form { background: #252540; border-radius: 10px; padding: 12px; margin-top: 10px; }
+  .add-form h4 { font-size: 12px; color: #a78bfa; margin-bottom: 10px; font-weight: 700; }
+  .form-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .form-group { flex: 1; min-width: 100px; }
+  .form-group label { font-size: 11px; color: #888; display: block; margin-bottom: 4px; }
+  .form-group input, .form-group select { width: 100%; background: #1a1a2e; border: 1px solid #3a3a5a; color: #fff; padding: 8px; border-radius: 8px; font-size: 13px; }
+  .btn-add { width: 100%; padding: 10px; background: #7c3aed; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 4px; }
+  .btn-add-small { padding: 6px 12px; background: #1e3a5f; color: #60a5fa; border: 1px solid #2563eb; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+  .btn-hide-form { padding: 6px 12px; background: #2a2a4a; color: #888; border: 1px solid #3a3a5a; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; margin-top: 8px; margin-left: 6px; }
+  .proj-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #2a2a4a; font-size: 12px; }
+  .proj-row:last-child { border-bottom: none; }
+  .proj-month { color: #aaa; }
+  .proj-val { color: #f59e0b; font-weight: 700; }
+  .proj-current { background: #1e1e38; border-radius: 6px; padding: 2px 6px; }
+  .entrada-row { display: flex; align-items: center; gap: 8px; padding: 8px; background: #0d2a1a; border-radius: 10px; margin-bottom: 8px; border: 1px solid #1a4a2a; }
+  .entrada-value { font-size: 14px; font-weight: 700; color: #10b981; }
+  .empty-msg { text-align: center; color: #555; font-size: 12px; padding: 16px; }
+  .modal-overlay { visibility: hidden; opacity: 0; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 999; display: flex; align-items: center; justify-content: center; pointer-events: none; transition: opacity 0.2s; }
+  .modal-overlay.open { visibility: visible; opacity: 1; pointer-events: all; }
+  .modal-box { background: #1e1e38; border-radius: 16px; padding: 20px; width: 90%; max-width: 380px; border: 1px solid #3a3a5a; }
+  .modal-box h3 { font-size: 15px; color: #a78bfa; margin-bottom: 16px; font-weight: 700; }
+  .modal-field { margin-bottom: 12px; }
+  .modal-field label { font-size: 11px; color: #888; display: block; margin-bottom: 4px; }
+  .modal-field input, .modal-field select { width: 100%; background: #1a1a2e; border: 1px solid #3a3a5a; color: #fff; padding: 8px; border-radius: 8px; font-size: 13px; }
+  .modal-row { display: flex; gap: 8px; }
+  .modal-row .modal-field { flex: 1; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .btn-cancel { flex: 1; padding: 10px; background: #2a2a4a; color: #aaa; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
+  .btn-save { flex: 1; padding: 10px; background: #7c3aed; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>&#128176; Controle Financeiro</h1>
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)">&#8249;</button>
+    <span id="monthLabel"></span>
+    <button onclick="changeMonth(1)">&#8250;</button>
+  </div>
+  <div class="sync-status offline" id="syncStatus">&#9679; Carregando...</div>
+</div>
+<div class="container">
+  <div class="summary-card">
+    <div class="summary-row"><span class="summary-label">&#128154; Total Entradas</span><span class="summary-value green" id="sumEntradas">R$ 0,00</span></div>
+    <div class="summary-row"><span class="summary-label">&#128308; Contas Fixas</span><span class="summary-value red" id="sumFixas">R$ 0,00</span></div>
+    <div class="summary-row"><span class="summary-label">&#128179; Cartoes</span><span class="summary-value red" id="sumCartoes">R$ 0,00</span></div>
+    <div class="summary-row total"><span class="summary-label">Total Saidas</span><span class="summary-value red" id="sumSaidas">R$ 0,00</span></div>
+    <div class="saldo-big zero" id="saldoBox"><span>Saldo do Mes</span><strong id="saldoVal" style="color:#f59e0b">R$ 0,00</strong></div>
+  </div>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>&#128154; Entradas</h2>
+      <div style="display:flex;align-items:center;gap:8px;"><span class="total-badge" id="totalEntradas">R$ 0,00</span><span class="arrow">&#9660;</span></div>
+    </div>
+    <div class="section-body" id="bodyEntradas">
+      <div id="listaEntradas"></div>
+      <button class="btn-add-small" onclick="showForm('formEntrada')">+ Adicionar entrada</button>
+      <div class="add-form" id="formEntrada" style="display:none;">
+        <h4>Nova Entrada</h4>
+        <div class="form-row">
+          <div class="form-group"><label>Descricao</label><input type="text" id="entradaNome" placeholder="Ex: Salario"/></div>
+          <div class="form-group" style="max-width:130px;"><label>Valor (R$)</label><input type="number" id="entradaValor" placeholder="0,00"/></div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-add" style="flex:1;" onclick="addEntrada()">Adicionar</button>
+          <button class="btn-hide-form" onclick="hideForm('formEntrada')">&#8593; Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>&#128203; Contas Fixas</h2>
+      <div style="display:flex;align-items:center;gap:8px;"><span class="total-badge" id="totalFixas">R$ 0,00</span><span class="arrow">&#9660;</span></div>
+    </div>
+    <div class="section-body" id="bodyFixas">
+      <div id="listaFixas"></div>
+      <button class="btn-add-small" onclick="showForm('formFixa')">+ Adicionar conta fixa</button>
+      <div class="add-form" id="formFixa" style="display:none;">
+        <h4>Nova Conta Fixa</h4>
+        <div class="form-row"><div class="form-group"><label>Descricao</label><input type="text" id="fixaNome" placeholder="Ex: Condominio"/></div></div>
+        <div class="form-row">
+          <div class="form-group"><label>Valor (R$)</label><input type="number" id="fixaValor" placeholder="0,00"/></div>
+          <div class="form-group"><label>Vencimento (dia)</label><input type="number" id="fixaVenc" placeholder="Ex: 10" min="1" max="31"/></div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-add" style="flex:1;" onclick="addFixa()">Adicionar</button>
+          <button class="btn-hide-form" onclick="hideForm('formFixa')">&#8593; Fechar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <h2>&#128179; Cartoes de Credito</h2>
+      <div style="display:flex;align-items:center;gap:8px;"><span class="total-badge" id="totalCartoesHeader">R$ 0,00</span><span class="arrow">&#9660;</span></div>
+    </div>
+    <div class="section-body" id="bodyCartoes"><div id="listaCartoes"></div></div>
+  </div>
+</div>
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <h3 id="modalTitle">Editar</h3>
+    <div id="modalFields"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" onclick="saveModal()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const FB_PROJECT = "controlefinancpaulo";
+const FB_API_KEY = "AIzaSyATt31uIgZSXPkZ3oBN9A9sUYSzeClhbgM";
+const FB_DOC_URL = "https://firestore.googleapis.com/v1/projects/" + FB_PROJECT + "/databases/(default)/documents/financeiro/dados?key=" + FB_API_KEY;
+
+const MESES = ["Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const CARTOES = [
+  { id: "nubank", nome: "Nubank", cor: "#820ad1", venc: 5 },
+  { id: "inter",  nome: "Inter",  cor: "#ff6600", venc: 7 },
+  { id: "xp",     nome: "XP",     cor: "#c0c0c0", venc: 5 },
+  { id: "caixa",  nome: "Caixa",  cor: "#005ca9", venc: 11 },
+  { id: "azul",   nome: "Azul",   cor: "#0057b8", venc: 8 },
+];
+const LOCAL_KEY = "cf_data_v4";
+
+let currentYear = 2025, currentMonth = 4;
+let data = {};
+let saveTimer = null;
+let modalCtx = null;
+
+function toFirestore(obj) {
+  if (obj === null || obj === undefined) return { nullValue: null };
+  if (typeof obj === "boolean") return { booleanValue: obj };
+  if (typeof obj === "number") return { doubleValue: obj };
+  if (typeof obj === "string") return { stringValue: obj };
+  if (Array.isArray(obj)) return { arrayValue: { values: obj.map(toFirestore) } };
+  if (typeof obj === "object") {
+    const fields = {};
+    for (const k in obj) fields[k] = toFirestore(obj[k]);
+    return { mapValue: { fields } };
+  }
+  return { stringValue: String(obj) };
+}
+
+function fromFirestore(val) {
+  if (!val) return null;
+  if ("nullValue" in val) return null;
+  if ("booleanValue" in val) return val.booleanValue;
+  if ("integerValue" in val) return Number(val.integerValue);
+  if ("doubleValue" in val) return Number(val.doubleValue);
+  if ("stringValue" in val) return val.stringValue;
+  if ("arrayValue" in val) return (val.arrayValue.values || []).map(fromFirestore);
+  if ("mapValue" in val) {
+    const obj = {};
+    const fields = val.mapValue.fields || {};
+    for (const k in fields) obj[k] = fromFirestore(fields[k]);
+    return obj;
+  }
+  return null;
+}
+
+async function fbLoad() {
+  const res = await fetch(FB_DOC_URL);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const json = await res.json();
+  if (!json.fields) return null;
+  return fromFirestore({ mapValue: { fields: json.fields } });
+}
+
+async function fbSave(obj) {
+  const fields = {};
+  for (const k in obj) fields[k] = toFirestore(obj[k]);
+  const res = await fetch(FB_DOC_URL, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields })
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error("Save failed: " + err);
+  }
+}
+
+function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(data)); } catch(e){} }
+function loadLocal() { try { const r = localStorage.getItem(LOCAL_KEY); if(r){ data = JSON.parse(r); return true; } } catch(e){} return false; }
+
+const hadLocal = loadLocal();
+renderAll();
+setSyncStatus("offline", hadLocal ? "&#128196; Cache local — sincronizando..." : "&#9679; Conectando...");
+
+fbLoad().then(remote => {
+  if (remote && remote.meses) {
+    data = remote.meses;
+    saveLocal();
+    renderAll();
+  }
+  setSyncStatus("saved");
+}).catch(err => {
+  console.error("fbLoad error:", err);
+  setSyncStatus("error", "&#9888; Sem conexao — usando cache local");
+});
+
+function scheduleSave() {
+  saveLocal();
+  setSyncStatus("saving");
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    fbSave({ meses: data }).then(() => {
+      setSyncStatus("saved");
+    }).catch(e => {
+      console.error("fbSave error:", e);
+      setSyncStatus("error", "&#9888; Erro ao salvar — dados no cache local");
+    });
+  }, 1500);
+}
+
+function setSyncStatus(state, msg) {
+  const el = document.getElementById("syncStatus");
+  if (msg) { el.innerHTML = msg; el.className = "sync-status " + state; return; }
+  if (state === "saving") { el.innerHTML = "&#128260; Salvando..."; el.className = "sync-status saving"; }
+  else if (state === "saved") { el.innerHTML = "&#10003; Sincronizado"; el.className = "sync-status saved"; }
+  else if (state === "error") { el.innerHTML = "&#9888; Erro de conexao"; el.className = "sync-status error"; }
+  else { el.innerHTML = "&#9679; Offline"; el.className = "sync-status offline"; }
+}
+
+function monthKey(y, m) { return y + "-" + String(m+1).padStart(2,"0"); }
+function currentKey() { return monthKey(currentYear, currentMonth); }
+function getMonthData(key) {
+  if (!data[key]) data[key] = { entradas: [], fixas: [], cartoes: {} };
+  if (!data[key].cartoes) data[key].cartoes = {};
+  CARTOES.forEach(c => { if (!data[key].cartoes[c.id]) data[key].cartoes[c.id] = { itens: [] }; });
+  return data[key];
+}
+function fmt(v) { return "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function changeMonth(dir) {
+  currentMonth += dir;
+  if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+  if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+  renderAll();
+}
+
+function propagarParcelas(cartaoId, item, fromKey) {
+  const [sy, sm] = fromKey.split("-").map(Number); const startM = sm - 1;
+  const atual = parseInt(item.parcelaAtual), total = parseInt(item.parcelaTotal);
+  for (let i = 1; i <= total - atual; i++) {
+    let nm = startM + i, ny = sy;
+    while (nm > 11) { nm -= 12; ny++; }
+    const fk = monthKey(ny, nm);
+    const fmd = getMonthData(fk);
+    const pf = atual + i;
+    const jaExiste = fmd.cartoes[cartaoId].itens.some(it => it.nome === item.nome && it.tipo === "parcela" && parseInt(it.parcelaAtual) === pf);
+    if (!jaExiste) fmd.cartoes[cartaoId].itens.push({ nome: item.nome, valor: item.valor, tipo: "parcela", parcelaAtual: pf, parcelaTotal: total, propagado: true });
+  }
+}
+
+function removerPropagadas(cartaoId, item, fromKey) {
+  const [sy, sm] = fromKey.split("-").map(Number); const startM = sm - 1;
+  const atual = parseInt(item.parcelaAtual), total = parseInt(item.parcelaTotal);
+  for (let i = 1; i <= total - atual; i++) {
+    let nm = startM + i, ny = sy;
+    while (nm > 11) { nm -= 12; ny++; }
+    const fk = monthKey(ny, nm);
+    if (!data[fk] || !data[fk].cartoes || !data[fk].cartoes[cartaoId]) continue;
+    const pf = atual + i;
+    data[fk].cartoes[cartaoId].itens = data[fk].cartoes[cartaoId].itens.filter(it => !(it.nome === item.nome && it.tipo === "parcela" && parseInt(it.parcelaAtual) === pf && it.propagado));
+  }
+}
+
+function renderAll() {
+  document.getElementById("monthLabel").textContent = MESES[currentMonth] + " " + currentYear;
+  const md = getMonthData(currentKey());
+  renderEntradas(md); renderFixas(md); renderCartoes(md); updateSummary(md);
+}
+
+function renderEntradas(md) {
+  const lista = document.getElementById("listaEntradas");
+  const entradas = md.entradas || [];
+  lista.innerHTML = entradas.length === 0 ? '<div class="empty-msg">Nenhuma entrada cadastrada</div>'
+    : entradas.map((e,i) => '<div class="entrada-row"><div class="item-info"><div class="item-name">'+e.nome+'</div></div><span class="entrada-value">'+fmt(e.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'entrada\','+i+')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeEntrada('+i+')">&#128465;&#65039;</button></div></div>').join("");
+  document.getElementById("totalEntradas").textContent = fmt(entradas.reduce((s,e)=>s+Number(e.valor||0),0));
+}
+
+function addEntrada() {
+  const nome = document.getElementById("entradaNome").value.trim();
+  const valor = parseFloat(document.getElementById("entradaValor").value);
+  if (!nome || isNaN(valor)) return alert("Preencha todos os campos");
+  getMonthData(currentKey()).entradas.push({ nome, valor });
+  document.getElementById("entradaNome").value = "";
+  document.getElementById("entradaValor").value = "";
+  hideForm("formEntrada"); scheduleSave(); renderAll();
+}
+
+function removeEntrada(i) {
+  if (!confirm("Remover entrada?")) return;
+  getMonthData(currentKey()).entradas.splice(i, 1);
+  scheduleSave(); renderAll();
+}
+
+function renderFixas(md) {
+  const lista = document.getElementById("listaFixas");
+  const fixas = md.fixas || [];
+  lista.innerHTML = fixas.length === 0 ? '<div class="empty-msg">Nenhuma conta fixa cadastrada</div>'
+    : fixas.map((f,i) => '<div class="item-row"><div class="item-info"><div class="item-name">'+f.nome+'</div>'+(f.venc?'<div class="item-sub">Vence dia '+f.venc+'</div>':'')+'</div><span class="item-value">'+fmt(f.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'fixa\','+i+')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeFixa('+i+')">&#128465;&#65039;</button></div></div>').join("");
+  document.getElementById("totalFixas").textContent = fmt(fixas.reduce((s,f)=>s+Number(f.valor||0),0));
+}
+
+function addFixa() {
+  const nome = document.getElementById("fixaNome").value.trim();
+  const valor = parseFloat(document.getElementById("fixaValor").value);
+  const venc = document.getElementById("fixaVenc").value;
+  if (!nome || isNaN(valor)) return alert("Preencha nome e valor");
+  getMonthData(currentKey()).fixas.push({ nome, valor, venc: venc || "" });
+  document.getElementById("fixaNome").value = "";
+  document.getElementById("fixaValor").value = "";
+  document.getElementById("fixaVenc").value = "";
+  hideForm("formFixa"); scheduleSave(); renderAll();
+}
+
+function removeFixa(i) {
+  if (!confirm("Remover conta fixa?")) return;
+  getMonthData(currentKey()).fixas.splice(i, 1);
+  scheduleSave(); renderAll();
+}
+
+function renderCartoes(md) {
+  const lista = document.getElementById("listaCartoes");
+  let totalGeral = 0;
+  lista.innerHTML = CARTOES.map(c => {
+    const itens = (md.cartoes[c.id]||{}).itens || [];
+    const total = itens.reduce((s,it)=>s+Number(it.valor||0),0);
+    totalGeral += total;
+    return '<div class="cartao-block"><div class="cartao-header" onclick="toggleCartao(\''+ c.id +'\')">' +
+      '<div><div class="cartao-name" style="color:'+c.cor+'">'+c.nome+'</div><div class="cartao-venc">Vence dia '+c.venc+'</div></div>' +
+      '<div style="display:flex;align-items:center;gap:8px;"><span class="cartao-total">'+fmt(total)+'</span><span class="cartao-arrow" id="arrow-'+c.id+'">&#9660;</span></div></div>' +
+      '<div class="cartao-body" id="body-'+c.id+'">'+renderCartaoBody(c, itens)+'</div></div>';
+  }).join("");
+  document.getElementById("totalCartoesHeader").textContent = fmt(totalGeral);
+}
+
+function renderCartaoBody(c, itens) {
+  const listaHtml = itens.length === 0 ? '<div class="empty-msg">Nenhum lancamento</div>'
+    : itens.map((it,i) => {
+        const badge = it.tipo==="parcela"
+          ? '<span class="parcela-badge">'+it.parcelaAtual+'/'+it.parcelaTotal+'</span>'
+          : it.tipo==="recorrente" ? '<span class="recorrente-badge">Recorrente</span>'
+          : '<span class="avulso-badge">Avulso</span>';
+        const sub = it.tipo==="parcela" ? 'Faltam '+(parseInt(it.parcelaTotal)-parseInt(it.parcelaAtual))+' parcelas'
+          : it.tipo==="recorrente" ? "Todo mes" : "";
+        const autoTag = it.propagado ? ' <span style="font-size:9px;color:#555;font-style:italic;">auto</span>' : '';
+        return '<div class="item-row"><div class="item-info"><div class="item-name">'+it.nome+' '+badge+autoTag+'</div>'+(sub?'<div class="item-sub">'+sub+'</div>':'')+'</div><span class="item-value">'+fmt(it.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'cartao\','+i+',\''+c.id+'\')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeCartaoItem(\''+c.id+'\','+i+')">&#128465;&#65039;</button></div></div>';
+      }).join("");
+
+  const proj = buildProjecao(c.id);
+  const curKey = currentKey();
+  const projHtml = proj.length === 0 ? '<div class="empty-msg">Sem parcelas para projetar</div>'
+    : proj.map(p => '<div class="proj-row'+(p.key===curKey?' proj-current':'')+'"><span class="proj-month">'+(p.key===curKey?'&#9654; ':'')+p.label+'</span><span class="proj-val">'+fmt(p.total)+'</span></div>').join("");
+
+  return '<div class="tabs">' +
+    '<div class="tab active" id="tab-'+c.id+'-itens" onclick="switchTab(\''+c.id+'\',\'itens\')">Lancamentos</div>' +
+    '<div class="tab" id="tab-'+c.id+'-proj" onclick="switchTab(\''+c.id+'\',\'proj\')">Projecao</div></div>' +
+    '<div id="tab-content-'+c.id+'-itens">'+listaHtml+
+    '<button class="btn-add-small" onclick="showForm(\'form-'+c.id+'\')">+ Adicionar lancamento</button>' +
+    '<div class="add-form" id="form-'+c.id+'" style="display:none;"><h4>Novo Lancamento - '+c.nome+'</h4>' +
+    '<div class="form-row"><div class="form-group"><label>Descricao</label><input type="text" data-field="nome" placeholder="Ex: Academia"/></div>' +
+    '<div class="form-group" style="max-width:120px;"><label>Valor (R$)</label><input type="number" data-field="valor" placeholder="0,00"/></div></div>' +
+    '<div class="form-row"><div class="form-group"><label>Tipo</label><select data-field="tipo" onchange="toggleParcelaFields(this)"><option value="avulso">Avulso</option><option value="parcela">Parcelado</option><option value="recorrente">Recorrente</option></select></div></div>' +
+    '<div class="parcela-fields" style="display:none;"><div class="form-row">' +
+    '<div class="form-group"><label>Parcela atual</label><input type="number" data-field="parcAtual" placeholder="Ex: 2" min="1"/></div>' +
+    '<div class="form-group"><label>Total parcelas</label><input type="number" data-field="parcTotal" placeholder="Ex: 12" min="1"/></div></div></div>' +
+    '<div style="display:flex;gap:6px;"><button class="btn-add" style="flex:1;" onclick="addCartaoItem(\''+c.id+'\')">Adicionar</button>' +
+    '<button class="btn-hide-form" onclick="hideForm(\'form-'+c.id+'\')">&#8593; Fechar</button></div></div></div>' +
+    '<div id="tab-content-'+c.id+'-proj" style="display:none;">'+projHtml+'</div>';
+}
+
+function buildProjecao(cartaoId) {
+  const result = {};
+  Object.keys(data).forEach(key => {
+    const md = data[key];
+    if (!md || !md.cartoes || !md.cartoes[cartaoId]) return;
+    (md.cartoes[cartaoId].itens || []).forEach(item => {
+      if (item.tipo !== "parcela" || item.propagado) return;
+      const [sy, sm] = key.split("-").map(Number); const startM = sm - 1;
+      const atual = parseInt(item.parcelaAtual), total = parseInt(item.parcelaTotal);
+      for (let i = 0; i <= total - atual; i++) {
+        let nm = startM + i, ny = sy;
+        while (nm > 11) { nm -= 12; ny++; }
+        const k = monthKey(ny, nm);
+        result[k] = (result[k] || 0) + Number(item.valor || 0);
+      }
+    });
+  });
+  const curMd = getMonthData(currentKey());
+  const recorrentes = ((curMd.cartoes[cartaoId]||{}).itens||[]).filter(it => it.tipo==="recorrente");
+  for (let i = 0; i < 12; i++) {
+    let nm = currentMonth + i, ny = currentYear;
+    while (nm > 11) { nm -= 12; ny++; }
+    const k = monthKey(ny, nm);
+    recorrentes.forEach(r => { result[k] = (result[k]||0) + Number(r.valor||0); });
+  }
+  return Object.keys(result).sort().map(k => {
+    const [y, m] = k.split("-");
+    return { key: k, label: MESES[parseInt(m)-1] + " " + y, total: result[k] };
+  }).filter(p => p.total > 0);
+}
+
+function toggleCartao(id) {
+  const body = document.getElementById("body-"+id);
+  const arrow = document.getElementById("arrow-"+id);
+  const isOpen = body.classList.contains("open");
+  body.classList.toggle("open", !isOpen);
+  if (arrow) arrow.style.transform = isOpen ? "" : "rotate(180deg)";
+}
+
+function switchTab(cartaoId, tab) {
+  ["itens","proj"].forEach(t => {
+    const te = document.getElementById("tab-"+cartaoId+"-"+t);
+    const ce = document.getElementById("tab-content-"+cartaoId+"-"+t);
+    if (te) te.classList.toggle("active", t===tab);
+    if (ce) ce.style.display = t===tab ? "block" : "none";
+  });
+}
+
+function toggleParcelaFields(selectEl) {
+  // Recebe o elemento select diretamente (sem depender de id)
+  const tipo = selectEl.value;
+  const form = selectEl.closest('.add-form');
+  if (!form) return;
+  const fields = form.querySelector('.parcela-fields');
+  if (fields) fields.style.display = tipo==="parcela" ? "block" : "none";
+}
+
+function addCartaoItem(cartaoId) {
+  // Usa o form element para garantir acesso aos campos mesmo após renders parciais
+  const form = document.getElementById("form-"+cartaoId);
+  if (!form) return alert("Formulario nao encontrado");
+  const nome  = form.querySelector('[data-field="nome"]').value.trim();
+  const valor = parseFloat(form.querySelector('[data-field="valor"]').value);
+  const tipo  = form.querySelector('[data-field="tipo"]').value;
+  if (!nome || isNaN(valor) || valor <= 0) return alert("Preencha nome e valor");
+  const item = { nome, valor, tipo };
+  if (tipo === "parcela") {
+    const parcAtual = parseInt(form.querySelector('[data-field="parcAtual"]').value);
+    const parcTotal = parseInt(form.querySelector('[data-field="parcTotal"]').value);
+    if (isNaN(parcAtual)||isNaN(parcTotal)||parcAtual<1||parcTotal<1) return alert("Preencha as parcelas corretamente");
+    item.parcelaAtual = parcAtual; item.parcelaTotal = parcTotal;
+  }
+  const md = getMonthData(currentKey());
+  if (!md.cartoes[cartaoId]) md.cartoes[cartaoId] = { itens: [] };
+  md.cartoes[cartaoId].itens.push(item);
+  if (tipo === "parcela") propagarParcelas(cartaoId, item, currentKey());
+  scheduleSave(); renderAll();
+  setTimeout(() => { const b = document.getElementById("body-"+cartaoId); if (b&&!b.classList.contains("open")) toggleCartao(cartaoId); }, 50);
+}
+
+function removeCartaoItem(cartaoId, i) {
+  const md = getMonthData(currentKey());
+  const item = md.cartoes[cartaoId].itens[i];
+  const isParcela = item && item.tipo==="parcela" && !item.propagado;
+  if (!confirm(isParcela ? "Remover lancamento? As parcelas futuras propagadas tambem serao removidas." : "Remover lancamento?")) return;
+  if (isParcela) removerPropagadas(cartaoId, item, currentKey());
+  md.cartoes[cartaoId].itens.splice(i, 1);
+  scheduleSave(); renderAll();
+  setTimeout(() => { const b = document.getElementById("body-"+cartaoId); if (b&&!b.classList.contains("open")) toggleCartao(cartaoId); }, 50);
+}
+
+function updateSummary(md) {
+  const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
+  const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
+  let cartoes = 0;
+  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
+  const saidas = fixas + cartoes;
+  const saldo = entradas - saidas;
+  document.getElementById("sumEntradas").textContent = fmt(entradas);
+  document.getElementById("sumFixas").textContent = fmt(fixas);
+  document.getElementById("sumCartoes").textContent = fmt(cartoes);
+  document.getElementById("sumSaidas").textContent = fmt(saidas);
+  document.getElementById("saldoVal").textContent = fmt(saldo);
+  const box = document.getElementById("saldoBox");
+  box.className = "saldo-big " + (saldo>0?"positive":saldo<0?"negative":"zero");
+  document.getElementById("saldoVal").style.color = saldo>0?"#10b981":saldo<0?"#ef4444":"#f59e0b";
+}
+
+function editItem(tipo, idx, cartaoId) {
+  const md = getMonthData(currentKey());
+  let item;
+  if (tipo==="entrada") item = md.entradas[idx];
+  else if (tipo==="fixa") item = md.fixas[idx];
+  else item = md.cartoes[cartaoId].itens[idx];
+  modalCtx = { tipo, idx, cartaoId };
+  document.getElementById("modalTitle").textContent = tipo==="entrada"?"Editar Entrada":tipo==="fixa"?"Editar Conta Fixa":"Editar Lancamento";
+  let html = '<div class="modal-field"><label>Descricao</label><input type="text" id="mNome" value="'+item.nome+'"/></div>'
+    +'<div class="modal-field"><label>Valor (R$)</label><input type="number" id="mValor" value="'+item.valor+'"/></div>';
+  if (tipo==="fixa") html += '<div class="modal-field"><label>Vencimento (dia)</label><input type="number" id="mVenc" value="'+(item.venc||"")+'"/></div>';
+  if (tipo==="cartao" && item.tipo==="parcela") html += '<div class="modal-row"><div class="modal-field"><label>Parcela atual</label><input type="number" id="mParcAtual" value="'+item.parcelaAtual+'"/></div><div class="modal-field"><label>Total parcelas</label><input type="number" id="mParcTotal" value="'+item.parcelaTotal+'"/></div></div>';
+  document.getElementById("modalFields").innerHTML = html;
+  document.getElementById("modalOverlay").classList.add("open");
+}
+
+function closeModal() { document.getElementById("modalOverlay").classList.remove("open"); modalCtx = null; }
+
+document.getElementById("modalOverlay").addEventListener("click", function(e) { if (e.target===this) closeModal(); });
+
+function saveModal() {
+  if (!modalCtx) return;
+  const nome = document.getElementById("mNome").value.trim();
+  const valor = parseFloat(document.getElementById("mValor").value);
+  if (!nome||isNaN(valor)) return alert("Preencha nome e valor");
+  const md = getMonthData(currentKey());
+  const { tipo, idx, cartaoId } = modalCtx;
+  if (tipo==="entrada") { md.entradas[idx].nome=nome; md.entradas[idx].valor=valor; }
+  else if (tipo==="fixa") { md.fixas[idx].nome=nome; md.fixas[idx].valor=valor; md.fixas[idx].venc=document.getElementById("mVenc").value||""; }
+  else { const it=md.cartoes[cartaoId].itens[idx]; it.nome=nome; it.valor=valor; if(it.tipo==="parcela"){it.parcelaAtual=parseInt(document.getElementById("mParcAtual").value);it.parcelaTotal=parseInt(document.getElementById("mParcTotal").value);} }
+  const savedCtx = { ...modalCtx };
+  closeModal(); scheduleSave(); renderAll();
+  if (savedCtx.tipo==="cartao") setTimeout(()=>{ const b=document.getElementById("body-"+savedCtx.cartaoId); if(b&&!b.classList.contains("open")) toggleCartao(savedCtx.cartaoId); },50);
+}
+
+function toggleSection(header) {
+  const body = header.nextElementSibling;
+  body.classList.toggle("open", !body.classList.contains("open"));
+}
+function showForm(id) { const el=document.getElementById(id); if(el) el.style.display="block"; }
+function hideForm(id) { const el=document.getElementById(id); if(el) el.style.display="none"; }
+</script>
+</body>
+</html>
