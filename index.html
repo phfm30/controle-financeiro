@@ -427,7 +427,7 @@ function renderCartaoBody(c, itens) {
     '<button class="btn-add-small" onclick="showForm(\'form-'+c.id+'\')">+ Adicionar lancamento</button>' +
     '<div class="add-form" id="form-'+c.id+'" style="display:none;"><h4>Novo Lancamento - '+c.nome+'</h4>' +
     '<div class="form-row"><div class="form-group"><label>Descricao</label><input type="text" data-field="nome" placeholder="Ex: Academia"/></div>' +
-    '<div class="form-group" style="max-width:120px;"><label>Valor (R$)</label><input type="number" data-field="valor" placeholder="0,00" inputmode="decimal" step="any"/></div></div>' +
+    '<div class="form-group" style="max-width:120px;"><label>Valor (R$)</label><input type="text" data-field="valor" placeholder="0,00" inputmode="decimal"/></div></div>' +
     '<div class="form-row"><div class="form-group"><label>Tipo</label><select data-field="tipo" onchange="toggleParcelaFields(this)"><option value="avulso">Avulso</option><option value="parcela">Parcelado</option><option value="recorrente">Recorrente</option></select></div></div>' +
     '<div class="parcela-fields" style="display:none;"><div class="form-row">' +
     '<div class="form-group"><label>Parcela atual</label><input type="number" data-field="parcAtual" placeholder="Ex: 2" min="1"/></div>' +
@@ -500,7 +500,9 @@ function addCartaoItem(cartaoId) {
 
   // FormData é o jeito mais seguro de ler valores no Safari
   const nome = (form.querySelector('[data-field="nome"]').value || "").trim();
-  let valorStr = form.querySelector('[data-field="valor"]').value.replace(',', '.');
+  let valorRaw = form.querySelector('[data-field="valor"]').value;
+  // Remove R$, espaços e troca vírgula por ponto
+  let valorStr = valorRaw.replace(/[R$\s]/g, '').replace(',', '.');
   const valor = parseFloat(valorStr);
   const tipo = form.querySelector('[data-field="tipo"]').value;
 
