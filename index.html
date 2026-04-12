@@ -304,6 +304,24 @@ function changeMonth(dir) {
   renderAll();
 }
 
+
+function propagarRecorrente(cartaoId, itemOriginal, startKey) {
+  let [y, m] = startKey.split("-").map(Number);
+  // Propaga por 24 meses (2 anos) para garantir que sempre esteja lá
+  for (let i = 1; i <= 24; i++) {
+    m++; if (m > 12) { m = 1; y++; }
+    const targetKey = `${y}-${String(m).padStart(2, '0')}`;
+    const md = getMonthData(targetKey);
+    if (!md.cartoes[cartaoId]) md.cartoes[cartaoId] = { itens: [] };
+
+    // Verifica se já não existe esse recorrente (pelo nome)
+    const existe = md.cartoes[cartaoId].itens.find(it => it.nome === itemOriginal.nome && it.tipo === 'recorrente');
+    if (!existe) {
+      const novoItem = { ...itemOriginal, propagado: true };
+      md.cartoes[cartaoId].itens.push(novoItem);
+    }
+  }
+}
 function propagarParcelas(cartaoId, item, fromKey) {
   const [sy, sm] = fromKey.split("-").map(Number); const startM = sm - 1;
   const atual = parseInt(item.parcelaAtual), total = parseInt(item.parcelaTotal);
@@ -331,7 +349,24 @@ function removerPropagadas(cartaoId, item, fromKey) {
   }
 }
 
+function replicarEntradasMensais() {
+  const key = currentKey();
+  const md = getMonthData(key);
+  // Se não tem entradas e não é o primeiro mês de uso, tenta buscar do anterior
+  if (md.entradas.length === 0) {
+     let [y, m] = key.split("-").map(Number);
+     m--; if(m < 1) { m = 12; y--; }
+     const prevKey = `${y}-${String(m).padStart(2, '0')}`;
+     const prevData = localData.months[prevKey];
+     if (prevData && prevData.entradas.length > 0) {
+        md.entradas = JSON.parse(JSON.stringify(prevData.entradas));
+        // Não salvamos automaticamente para o usuário poder editar antes de persistir
+     }
+  }
+}
+
 function renderAll() {
+  replicarEntradasMensais();
   document.getElementById("monthLabel").textContent = MESES[currentMonth] + " " + currentYear;
   const md = getMonthData(currentKey());
   renderEntradas(md); renderFixas(md); renderCartoes(md); updateSummary(md);
@@ -534,6 +569,7 @@ function addCartaoItem(cartaoId) {
   md.cartoes[cartaoId].itens.push(item);
 
   if (tipo === "parcela") propagarParcelas(cartaoId, item, currentKey());
+  if (tipo === "recorrente") propagarRecorrente(cartaoId, item, currentKey());
 
   scheduleSave();
   renderAll();
