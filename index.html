@@ -121,7 +121,7 @@
         <h4>Nova Entrada</h4>
         <div class="form-row">
           <div class="form-group"><label>Descricao</label><input type="text" id="entradaNome" placeholder="Ex: Salario"/></div>
-          <div class="form-group" style="max-width:130px;"><label>Valor (R$)</label><input type="number" id="entradaValor" placeholder="0,00"/></div>
+          <div class="form-group" style="max-width:130px;"><label>Valor (R$)</label><input type="number" id="entradaValor" placeholder="0,00" inputmode="decimal" step="any"/></div>
         </div>
         <div style="display:flex;gap:6px;">
           <button class="btn-add" style="flex:1;" onclick="addEntrada()">Adicionar</button>
@@ -142,7 +142,7 @@
         <h4>Nova Conta Fixa</h4>
         <div class="form-row"><div class="form-group"><label>Descricao</label><input type="text" id="fixaNome" placeholder="Ex: Condominio"/></div></div>
         <div class="form-row">
-          <div class="form-group"><label>Valor (R$)</label><input type="number" id="fixaValor" placeholder="0,00"/></div>
+          <div class="form-group"><label>Valor (R$)</label><input type="number" id="fixaValor" placeholder="0,00" inputmode="decimal" step="any"/></div>
           <div class="form-group"><label>Vencimento (dia)</label><input type="number" id="fixaVenc" placeholder="Ex: 10" min="1" max="31"/></div>
         </div>
         <div style="display:flex;gap:6px;">
@@ -427,7 +427,7 @@ function renderCartaoBody(c, itens) {
     '<button class="btn-add-small" onclick="showForm(\'form-'+c.id+'\')">+ Adicionar lancamento</button>' +
     '<div class="add-form" id="form-'+c.id+'" style="display:none;"><h4>Novo Lancamento - '+c.nome+'</h4>' +
     '<div class="form-row"><div class="form-group"><label>Descricao</label><input type="text" data-field="nome" placeholder="Ex: Academia"/></div>' +
-    '<div class="form-group" style="max-width:120px;"><label>Valor (R$)</label><input type="number" data-field="valor" placeholder="0,00"/></div></div>' +
+    '<div class="form-group" style="max-width:120px;"><label>Valor (R$)</label><input type="number" data-field="valor" placeholder="0,00" inputmode="decimal" step="any"/></div></div>' +
     '<div class="form-row"><div class="form-group"><label>Tipo</label><select data-field="tipo" onchange="toggleParcelaFields(this)"><option value="avulso">Avulso</option><option value="parcela">Parcelado</option><option value="recorrente">Recorrente</option></select></div></div>' +
     '<div class="parcela-fields" style="display:none;"><div class="form-row">' +
     '<div class="form-group"><label>Parcela atual</label><input type="number" data-field="parcAtual" placeholder="Ex: 2" min="1"/></div>' +
@@ -495,26 +495,51 @@ function toggleParcelaFields(selectEl) {
 }
 
 function addCartaoItem(cartaoId) {
-  // Usa o form element para garantir acesso aos campos mesmo após renders parciais
-  const form = document.getElementById("form-"+cartaoId);
+  const form = document.getElementById("form-" + cartaoId);
   if (!form) return alert("Formulario nao encontrado");
-  const nome  = form.querySelector('[data-field="nome"]').value.trim();
-  const valor = parseFloat(form.querySelector('[data-field="valor"]').value);
-  const tipo  = form.querySelector('[data-field="tipo"]').value;
-  if (!nome || isNaN(valor) || valor <= 0) return alert("Preencha nome e valor");
-  const item = { nome, valor, tipo };
-  if (tipo === "parcela") {
-    const parcAtual = parseInt(form.querySelector('[data-field="parcAtual"]').value);
-    const parcTotal = parseInt(form.querySelector('[data-field="parcTotal"]').value);
-    if (isNaN(parcAtual)||isNaN(parcTotal)||parcAtual<1||parcTotal<1) return alert("Preencha as parcelas corretamente");
-    item.parcelaAtual = parcAtual; item.parcelaTotal = parcTotal;
+
+  // FormData é o jeito mais seguro de ler valores no Safari
+  const nome = (form.querySelector('[data-field="nome"]').value || "").trim();
+  let valorStr = form.querySelector('[data-field="valor"]').value.replace(',', '.');
+  const valor = parseFloat(valorStr);
+  const tipo = form.querySelector('[data-field="tipo"]').value;
+
+  console.log("Tentando adicionar:", {nome, valor, tipo}); // Debug no console
+
+  if (!nome || isNaN(valor) || valor <= 0) {
+    alert("Preencha nome e valor");
+    return;
   }
+
+  const item = { nome, valor, tipo };
+
+  if (tipo === "parcela") {
+    const pAt = form.querySelector('[data-field="parcAtual"]').value;
+    const pTo = form.querySelector('[data-field="parcTotal"]').value;
+    const parcAtual = parseInt(pAt);
+    const parcTotal = parseInt(pTo);
+
+    if (isNaN(parcAtual) || isNaN(parcTotal) || parcAtual < 1) {
+      alert("Preencha as parcelas corretamente");
+      return;
+    }
+    item.parcelaAtual = parcAtual;
+    item.parcelaTotal = parcTotal;
+  }
+
   const md = getMonthData(currentKey());
   if (!md.cartoes[cartaoId]) md.cartoes[cartaoId] = { itens: [] };
   md.cartoes[cartaoId].itens.push(item);
+
   if (tipo === "parcela") propagarParcelas(cartaoId, item, currentKey());
-  scheduleSave(); renderAll();
-  setTimeout(() => { const b = document.getElementById("body-"+cartaoId); if (b&&!b.classList.contains("open")) toggleCartao(cartaoId); }, 50);
+
+  scheduleSave();
+  renderAll();
+
+  setTimeout(() => {
+    const b = document.getElementById("body-" + cartaoId);
+    if (b && !b.classList.contains("open")) toggleCartao(cartaoId);
+  }, 100);
 }
 
 function removeCartaoItem(cartaoId, i) {
