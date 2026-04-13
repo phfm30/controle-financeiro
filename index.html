@@ -89,6 +89,10 @@
   .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
   .btn-cancel { flex: 1; padding: 10px; background: #2a2a4a; color: #aaa; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
   .btn-save { flex: 1; padding: 10px; background: #7c3aed; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+
+  .item-row.pago { opacity: 0.5; border-left: 4px solid #10b981; }
+  .pago-check { margin-right: 8px; width: 20px; height: 20px; accent-color: #10b981; cursor: pointer; }
+  .cartao-block.pago { border-left: 4px solid #10b981; }
 </style>
 </head>
 <body>
@@ -222,48 +226,26 @@ function fromFirestore(val) {
   return null;
 }
 
-async function fbLoad(timeoutMs = 7000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    console.log('fbLoad: iniciando fetch', FB_DOC_URL);
-    const res = await fetch(FB_DOC_URL, { signal: controller.signal, cache: 'no-store', mode: 'cors' });
-    clearTimeout(timer);
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const json = await res.json();
-    if (!json.fields) return null;
-    return fromFirestore({ mapValue: { fields: json.fields } });
-  } catch (e) {
-    clearTimeout(timer);
-    console.error('fbLoad error:', e);
-    throw e;
-  }
+async function fbLoad() {
+  const res = await fetch(FB_DOC_URL);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const json = await res.json();
+  if (!json.fields) return null;
+  return fromFirestore({ mapValue: { fields: json.fields } });
 }
 
-async function fbSave(obj, timeoutMs = 7000) {
+async function fbSave(obj) {
   const fields = {};
   for (const k in obj) fields[k] = toFirestore(obj[k]);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(FB_DOC_URL, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields }),
-      signal: controller.signal,
-      mode: 'cors',
-      cache: 'no-store'
-    });
-    clearTimeout(timer);
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error('Save failed: ' + err);
-    }
-  } catch (e) {
-    clearTimeout(timer);
-    console.error('fbSave error:', e);
-    throw e;
+  const res = await fetch(FB_DOC_URL, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields })
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error("Save failed: " + err);
   }
 }
 
@@ -379,7 +361,7 @@ function replicarEntradasMensais() {
      let [y, m] = key.split("-").map(Number);
      m--; if(m < 1) { m = 12; y--; }
      const prevKey = `${y}-${String(m).padStart(2, '0')}`;
-     const prevData = data[prevKey];
+     const prevData = localData.months[prevKey];
      if (prevData && prevData.entradas.length > 0) {
         md.entradas = JSON.parse(JSON.stringify(prevData.entradas));
         // Não salvamos automaticamente para o usuário poder editar antes de persistir
@@ -387,25 +369,26 @@ function replicarEntradasMensais() {
   }
 }
 
-function replicarFixasMensais() {
-  const key = currentKey();
-  const md = getMonthData(key);
-  if (!Array.isArray(md.fixas) || md.fixas.length === 0) {
-    let [y, m] = key.split("-").map(Number);
-    m--; if (m < 1) { m = 12; y--; }
-    const prevKey = `${y}-${String(m).padStart(2, '0')}`;
-    const prevData = data[prevKey];
-    if (prevData && Array.isArray(prevData.fixas) && prevData.fixas.length > 0) {
-      md.fixas = JSON.parse(JSON.stringify(prevData.fixas));
-    }
-  }
+
+function toggleFixaPago(idx) {
+  const md = getMonthData(currentKey());
+  md.fixas[idx].pago = !md.fixas[idx].pago;
+  scheduleSave();
+  renderAll();
+}
+function toggleCartaoPago(id) {
+  const md = getMonthData(currentKey());
+  if (!md.cartoes[id]) md.cartoes[id] = { itens: [] };
+  md.cartoes[id].pago = !md.cartoes[id].pago;
+  scheduleSave();
+  renderAll();
 }
 
 function renderAll() {
   replicarEntradasMensais();
   document.getElementById("monthLabel").textContent = MESES[currentMonth] + " " + currentYear;
   const md = getMonthData(currentKey());
-  renderEntradas(md); replicarFixasMensais(); renderFixas(md); renderCartoes(md); updateSummary(md);
+  renderEntradas(md); renderFixas(md); renderCartoes(md); updateSummary(md);
 }
 
 function renderEntradas(md) {
@@ -436,7 +419,7 @@ function renderFixas(md) {
   const lista = document.getElementById("listaFixas");
   const fixas = md.fixas || [];
   lista.innerHTML = fixas.length === 0 ? '<div class="empty-msg">Nenhuma conta fixa cadastrada</div>'
-    : fixas.map((f,i) => '<div class="item-row"><div class="item-info"><div class="item-name">'+f.nome+'</div>'+(f.venc?'<div class="item-sub">Vence dia '+f.venc+'</div>':'')+'</div><span class="item-value">'+fmt(f.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'fixa\','+i+')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeFixa('+i+')">&#128465;&#65039;</button></div></div>').join("");
+    : fixas.map((f,i) => '<div class="item-row' + (f.pago ? ' pago' : '') + '"><input type="checkbox" class="pago-check" ' + (f.pago ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleFixaPago(' + i + ')"> <div class="item-info"><div class="item-name">'+f.nome+'</div>'+(f.venc?'<div class="item-sub">Vence dia '+f.venc+'</div>':'')+'</div><span class="item-value">'+fmt(f.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'fixa\','+i+')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeFixa('+i+')">&#128465;&#65039;</button></div></div>').join("");
   document.getElementById("totalFixas").textContent = fmt(fixas.reduce((s,f)=>s+Number(f.valor||0),0));
 }
 
@@ -454,23 +437,7 @@ function addFixa() {
 
 function removeFixa(i) {
   if (!confirm("Remover conta fixa?")) return;
-  const md = getMonthData(currentKey());
-  const item = md.fixas[i];
-  if (!item) return;
-  const removeFuturos = confirm("Remover esta conta fixa dos meses seguintes também?");
-  md.fixas.splice(i, 1);
-  if (removeFuturos) {
-    // Remover dos meses futuros
-    const [y, m] = currentKey().split("-").map(Number);
-    Object.keys(data).forEach(key => {
-      const [ky, km] = key.split("-").map(Number);
-      if (ky > y || (ky === y && km > m)) {
-        if (data[key] && Array.isArray(data[key].fixas)) {
-          data[key].fixas = data[key].fixas.filter(f => f.nome !== item.nome);
-        }
-      }
-    });
-  }
+  getMonthData(currentKey()).fixas.splice(i, 1);
   scheduleSave(); renderAll();
 }
 
@@ -482,7 +449,7 @@ function renderCartoes(md) {
     const total = itens.reduce((s,it)=>s+Number(it.valor||0),0);
     totalGeral += total;
     return '<div class="cartao-block"><div class="cartao-header" onclick="toggleCartao(\''+ c.id +'\')">' +
-      '<div><div class="cartao-name" style="color:'+c.cor+'">'+c.nome+'</div><div class="cartao-venc">Vence dia '+c.venc+'</div></div>' +
+      '<div><div style="display:flex;align-items:center;"><input type="checkbox" class="pago-check" ' + (pago ? 'checked' : '') + ' onclick="event.stopPropagation(); toggleCartaoPago(\''+c.id+'\')"><div class="cartao-name" style="color:'+c.cor+'">'+c.nome+'</div></div><div class="cartao-venc">Vence dia '+c.venc+'</div></div>' +
       '<div style="display:flex;align-items:center;gap:8px;"><span class="cartao-total">'+fmt(total)+'</span><span class="cartao-arrow" id="arrow-'+c.id+'">&#9660;</span></div></div>' +
       '<div class="cartao-body" id="body-'+c.id+'">'+renderCartaoBody(c, itens)+'</div></div>';
   }).join("");
