@@ -516,19 +516,22 @@ function renderCartoes(md) {
     const total = itens.reduce((s,it)=>s+Number(it.valor||0),0);
     totalGeral += total;
     const pagoCartao = (md.cartoes[c.id]||{}).pago || false;
+    const checkedAttr = pagoCartao ? ' checked' : '';
+    const nomeStyle = pagoCartao ? 'line-through' : 'none';
+    const totalColor = pagoCartao ? '#10b981' : '#f59e0b';
+    const cid = c.id;
     return '<div class="cartao-block">' +
-      '<div class="cartao-header" onclick="toggleCartao(\''+ c.id +'\')">' +
+      '<div class="cartao-header" onclick="toggleCartao(\'' + cid + '\')">' +
       '<div style="display:flex;align-items:center;gap:8px;">' +
-      '<input type="checkbox" '+(pagoCartao?'checked':'')+' onclick="event.stopPropagation();togglePagoCartao(\''+c.id+'\', this.checked)" title="Marcar cartao como pago" style="width:18px;height:18px;cursor:pointer;accent-color:#10b981;flex-shrink:0;"/>' +
-      '<div><div class="cartao-name" style="color:'+c.cor+';text-decoration:'+(pagoCartao?'line-through':'none')+';">'+c.nome+'</div><div class="cartao-venc">Vence dia '+c.venc+'</div></div>' +
+      '<input type="checkbox"' + checkedAttr + ' onclick="event.stopPropagation();togglePagoCartao(\'' + cid + '\',this.checked)" title="Marcar cartao como pago" style="width:18px;height:18px;cursor:pointer;accent-color:#10b981;flex-shrink:0;"/>' +
+      '<div><div class="cartao-name" style="color:' + c.cor + ';text-decoration:' + nomeStyle + ';">' + c.nome + '</div><div class="cartao-venc">Vence dia ' + c.venc + '</div></div>' +
       '</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;"><span class="cartao-total" style="color:'+(pagoCartao?'#10b981':'#f59e0b')+';">'+fmt(total)+'</span><span class="cartao-arrow" id="arrow-'+c.id+'">&#9660;</span></div>' +
+      '<div style="display:flex;align-items:center;gap:8px;"><span class="cartao-total" style="color:' + totalColor + ';">' + fmt(total) + '</span><span class="cartao-arrow" id="arrow-' + cid + '">&#9660;</span></div>' +
       '</div>' +
-      '<div class="cartao-body" id="body-'+c.id+'">'+renderCartaoBody(c, itens)+'</div></div>';
+      '<div class="cartao-body" id="body-' + cid + '">' + renderCartaoBody(c, itens) + '</div></div>';
   }).join("");
   document.getElementById("totalCartoesHeader").textContent = fmt(totalGeral);
 }
-
 function renderCartaoBody(c, itens) {
   const listaHtml = itens.length === 0 ? '<div class="empty-msg">Nenhum lancamento</div>'
     : itens.map((it,i) => {
