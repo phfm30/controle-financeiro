@@ -167,16 +167,6 @@
     </div>
   </div>
 
-  <!-- INVESTIMENTO IDEAL -->
-  <div class="invest-card" id="investCard">
-    <div class="invest-title">&#127807; Investimento Ideal do Mês</div>
-    <div id="investRows"></div>
-    <div class="invest-highlight">
-      <span>Disponível para investir (50/30/20)</span>
-      <strong id="investIdeal">R$ 0,00</strong>
-    </div>
-  </div>
-
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)">
       <h2>&#128154; Entradas</h2>
@@ -228,6 +218,26 @@
     <div class="section-body" id="bodyCartoes"><div id="listaCartoes"></div><div class="proj-acum-card"><div class="proj-acum-title">&#128200; Projeção Acumulada — Todos os Cartões</div><div id="projAcumLista"></div></div></div>
   </div>
 </div>
+
+  <!-- INVESTIMENTO IDEAL -->
+  <div class="invest-card" id="investCard">
+    <div class="invest-title">&#127807; Meta de Investimento do Mês</div>
+    <div id="investRows"></div>
+    <div class="invest-highlight">
+      <span>Sugestão de investimento (20% da renda)</span>
+      <strong id="investIdeal">R$ 0,00</strong>
+    </div>
+    <div style="margin-top:12px;background:#0a2a0a;border-radius:10px;padding:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <input type="checkbox" id="chkInvestCusto" style="width:18px;height:18px;accent-color:#10b981;cursor:pointer;flex-shrink:0;" onchange="onInvestChange()" />
+      <label for="chkInvestCusto" style="font-size:12px;color:#aaa;cursor:pointer;flex:1;">Incluir investimento no custo mensal</label>
+      <select id="selectPctInvest" style="background:#0f2a0f;border:1px solid #1a4a1a;color:#10b981;padding:6px 10px;border-radius:8px;font-size:13px;font-weight:700;" onchange="onInvestChange()">
+        <option value="10">10%</option>
+        <option value="20" selected>20%</option>
+        <option value="30">30%</option>
+      </select>
+    </div>
+  </div>
+
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal-box">
     <h3 id="modalTitle">Editar</h3>
@@ -254,7 +264,7 @@ const CARTOES = [
 ];
 const LOCAL_KEY = "cf_data_v4";
 
-let currentYear = 2026, currentMonth = 3;
+let currentYear = 2026, currentMonth = 4;
 let data = {};
 let saveTimer = null;
 let modalCtx = null;
@@ -338,13 +348,48 @@ async function fbSave(obj, timeoutMs = 7000) {
 function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(data)); } catch(e){} }
 function loadLocal() { try { const r = localStorage.getItem(LOCAL_KEY); if(r){ data = JSON.parse(r); return true; } } catch(e){} return false; }
 
+
+// ── Migração: move TODOS os dados de 2025 → 2026 ──
+function migrarDados2025para2026() {
+  const keys2025 = Object.keys(data).filter(k => k.startsWith("2025-"));
+  if (keys2025.length === 0) return; // nada a migrar
+
+  // Verificar se já existe algum dado em 2026 (migração já feita)
+  const keys2026 = Object.keys(data).filter(k => k.startsWith("2026-"));
+  const ja2026temDados = keys2026.some(k => {
+    const d = data[k];
+    return (d.entradas && d.entradas.length > 0) ||
+           (d.fixas && d.fixas.length > 0) ||
+           (d.cartoes && Object.keys(d.cartoes).some(c => d.cartoes[c] && d.cartoes[c].itens && d.cartoes[c].itens.length > 0));
+  });
+  if (ja2026temDados) return; // já migrado, não sobrescrever
+
+  keys2025.forEach(oldKey => {
+    const [, mm] = oldKey.split("-");
+    const newKey = "2026-" + mm;
+    data[newKey] = JSON.parse(JSON.stringify(data[oldKey]));
+    // Resetar status pago (novo ano, novo mês)
+    if (data[newKey].fixas) data[newKey].fixas.forEach(f => f.pago = false);
+    if (data[newKey].cartoes) Object.keys(data[newKey].cartoes).forEach(k => {
+      if (data[newKey].cartoes[k]) data[newKey].cartoes[k].pago = false;
+    });
+    // Remover chave antiga de 2025
+    delete data[oldKey];
+  });
+
+  console.log("Migração 2025 → 2026 concluída. Meses migrados:", keys2025.length);
+  scheduleSave();
+}
+
 const hadLocal = loadLocal();
+migrarDados2025para2026();
 renderAll();
 setSyncStatus("offline", hadLocal ? "&#128196; Cache local — sincronizando..." : "&#9679; Conectando...");
 
 fbLoad().then(remote => {
   if (remote && remote.meses) {
     data = remote.meses;
+    migrarDados2025para2026();
     saveLocal();
     renderAll();
   }
@@ -482,7 +527,6 @@ function renderAll() {
   renderCC(md);
   renderInvest(md);
   renderProjAcum();
-  renderPercentuais(md);
 }
 
 function renderEntradas(md) {
@@ -764,11 +808,22 @@ function updateSummary(md) {
   const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
   let cartoes = 0;
   CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
-  const saidas = fixas + cartoes;
+
+  // Investimento ideal opcional
+  const incluirInvest = document.getElementById("chkInvestCusto") && document.getElementById("chkInvestCusto").checked;
+  const pctInvest = incluirInvest ? (parseFloat(document.getElementById("selectPctInvest") && document.getElementById("selectPctInvest").value) || 20) : 0;
+  const valorInvest = entradas * (pctInvest / 100);
+
+  const saidas = fixas + cartoes + (incluirInvest ? valorInvest : 0);
   const saldo = entradas - saidas;
+
+  // Percentuais da renda
+  const pctFixas = entradas > 0 ? Math.round((fixas/entradas)*100) : 0;
+  const pctCartoes = entradas > 0 ? Math.round((cartoes/entradas)*100) : 0;
+
   document.getElementById("sumEntradas").textContent = fmt(entradas);
-  document.getElementById("sumFixas").textContent = fmt(fixas);
-  document.getElementById("sumCartoes").textContent = fmt(cartoes);
+  document.getElementById("sumFixas").innerHTML = fmt(fixas) + ' <span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px;">' + pctFixas + '%</span>';
+  document.getElementById("sumCartoes").innerHTML = fmt(cartoes) + ' <span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px;">' + pctCartoes + '%</span>';
   document.getElementById("sumSaidas").textContent = fmt(saidas);
   document.getElementById("saldoVal").textContent = fmt(saldo);
   const box = document.getElementById("saldoBox");
@@ -855,7 +910,7 @@ function saveCCValor() {
   renderAll();
 }
 
-// ── Investimento Ideal (regra 50/30/20) ──
+// ── Meta de Investimento ──
 function renderInvest(md) {
   const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
   const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
@@ -863,6 +918,8 @@ function renderInvest(md) {
   CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
   const saidas = fixas + cartoes;
   const saldo = entradas - saidas;
+  const pctSel = parseFloat(document.getElementById("selectPctInvest") ? document.getElementById("selectPctInvest").value : 20) || 20;
+  const idealSel = entradas * (pctSel / 100);
   const ideal20 = entradas * 0.20;
   const ideal10 = entradas * 0.10;
   const pctGasto = entradas > 0 ? Math.round((saidas/entradas)*100) : 0;
@@ -871,15 +928,19 @@ function renderInvest(md) {
   const rows = [
     { label: "Renda total", value: fmt(entradas), color: "#10b981" },
     { label: "Total de saídas", value: fmt(saidas) + " (" + pctGasto + "%)", color: pctGasto > 80 ? "#ef4444" : "#f59e0b" },
-    { label: "Meta 20% (recomendado)", value: fmt(ideal20), color: "#a78bfa" },
-    { label: "Meta 10% (conservador)", value: fmt(ideal10), color: "#60a5fa" },
+    { label: "Meta 20% da renda", value: fmt(ideal20), color: "#a78bfa" },
+    { label: "Meta 10% da renda", value: fmt(ideal10), color: "#60a5fa" },
     { label: "Saldo disponível", value: fmt(saldo), color: saldo >= 0 ? "#10b981" : "#ef4444" },
   ];
 
   document.getElementById("investRows").innerHTML = rows.map(r =>
     '<div class="invest-row"><span class="invest-label">'+r.label+'</span><span class="invest-value" style="color:'+r.color+'">'+r.value+'</span></div>'
   ).join("");
-  document.getElementById("investIdeal").textContent = fmt(Math.min(disponivel, ideal20));
+  const elIdeal = document.getElementById("investIdeal");
+  if (elIdeal) {
+    elIdeal.textContent = fmt(idealSel);
+    elIdeal.closest(".invest-highlight").querySelector("span").textContent = "Sugestão de investimento (" + pctSel + "% da renda)";
+  }
 }
 
 // ── Projeção Acumulada de todos os cartões ──
@@ -947,6 +1008,14 @@ function renderPercentuais(md) {
 
   const elCartoes = document.getElementById("totalCartoesHeader");
   if (elCartoes) elCartoes.textContent = fmt(cartoes) + " · " + pctCartoesRenda + "% da renda";
+}
+
+
+function onInvestChange() {
+  const md = getMonthData(currentKey());
+  updateSummary(md);
+  renderInvest(md);
+  updateCCSaldo(md);
 }
 
 function toggleSection(header) {
