@@ -89,19 +89,6 @@
   .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
   .btn-cancel { flex: 1; padding: 10px; background: #2a2a4a; color: #aaa; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
   .btn-save { flex: 1; padding: 10px; background: #7c3aed; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
-
-.pago-item { opacity: 0.6; border-left: 4px solid #10b981; }
-.check-pago { width: 20px; height: 20px; margin-right: 8px; accent-color: #10b981; }
-
-.check-pago { 
-  width: 18px; height: 18px; margin-right: 8px; 
-  accent-color: #10b981; vertical-align: middle; 
-  -webkit-appearance: checkbox; appearance: checkbox;
-}
-.item-row { display: flex; align-items: center; gap: 12px; }
-.cartao-header { display: flex; justify-content: space-between; align-items: center; }
-.cartao-name { margin-left: 0 !important; }
-.pago-item { opacity: 0.6; border-left: 3px solid #10b981; }
 </style>
 </head>
 <body>
@@ -378,20 +365,6 @@ function replicarEntradasMensais() {
   }
 }
 
-
-function togglePagoFixa(i) {
-  const md = getMonthData(currentKey());
-  md.fixas[i].pago = !md.fixas[i].pago;
-  scheduleSave();
-  renderAll();
-}
-function togglePagoCartao(id) {
-  const md = getMonthData(currentKey());
-  md.cartoes[id].pago = !md.cartoes[id].pago;
-  scheduleSave();
-  renderAll();
-}
-
 function renderAll() {
   replicarEntradasMensais();
   document.getElementById("monthLabel").textContent = MESES[currentMonth] + " " + currentYear;
@@ -427,7 +400,7 @@ function renderFixas(md) {
   const lista = document.getElementById("listaFixas");
   const fixas = md.fixas || [];
   lista.innerHTML = fixas.length === 0 ? '<div class="empty-msg">Nenhuma conta fixa cadastrada</div>'
-    : fixas.map((f,i) => '<div class="item-row' + (f.pago ? ' pago-item' : '') + '"><div style="display:flex;align-items:center;gap:8px;"><input type="checkbox" class="check-pago" ' + (f.pago ? 'checked' : '') + ' onclick="togglePagoFixa(' + i + ')" /></div><div class="item-info"><div class="item-info"><div class="item-name">'+f.nome+'</div>'+(f.venc?'<div class="item-sub">Vence dia '+f.venc+'</div>':'')+'</div><span class="item-value">'+fmt(f.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'fixa\','+i+')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeFixa('+i+')">&#128465;&#65039;</button></div></div>').join("");
+    : fixas.map((f,i) => '<div class="item-row"><div class="item-info"><div class="item-name">'+f.nome+'</div>'+(f.venc?'<div class="item-sub">Vence dia '+f.venc+'</div>':'')+'</div><span class="item-value">'+fmt(f.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'fixa\','+i+')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeFixa('+i+')">&#128465;&#65039;</button></div></div>').join("");
   document.getElementById("totalFixas").textContent = fmt(fixas.reduce((s,f)=>s+Number(f.valor||0),0));
 }
 
@@ -457,7 +430,7 @@ function renderCartoes(md) {
     const total = itens.reduce((s,it)=>s+Number(it.valor||0),0);
     totalGeral += total;
     return '<div class="cartao-block"><div class="cartao-header" onclick="toggleCartao(\''+ c.id +'\')">' +
-      '<div><div style="display:flex;align-items:center;gap:6px;"><input type="checkbox" class="check-pago" ' + (md.cartoes[c.id] && md.cartoes[c.id].pago ? 'checked' : '') + ' onclick="togglePagoCartao(\''+c.id+'\')" /></div><div class="cartao-name" style="color:'+c.cor+'">'+c.nome+'</div><div class="cartao-venc">Vence dia '+c.venc+'</div></div>' +
+      '<div><div class="cartao-name" style="color:'+c.cor+'">'+c.nome+'</div><div class="cartao-venc">Vence dia '+c.venc+'</div></div>' +
       '<div style="display:flex;align-items:center;gap:8px;"><span class="cartao-total">'+fmt(total)+'</span><span class="cartao-arrow" id="arrow-'+c.id+'">&#9660;</span></div></div>' +
       '<div class="cartao-body" id="body-'+c.id+'">'+renderCartaoBody(c, itens)+'</div></div>';
   }).join("");
