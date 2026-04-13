@@ -436,20 +436,6 @@ function renderFixas(md) {
   const lista = document.getElementById("listaFixas");
   const fixas = md.fixas || [];
   lista.innerHTML = fixas.length === 0 ? '<div class="empty-msg">Nenhuma conta fixa cadastrada</div>'
-    : fixas.map((f,i) => {
-        const pago = f.pago ? 'checked' : '';
-        return `<div class="item-row"><div class="item-info"><div class="item-name">${f.nome}</div>` +
-          (f.venc ? `<div class="item-sub">Vence dia ${f.venc}</div>` : '') +
-          `</div><span class="item-value">${fmt(f.valor)}</span>` +
-          `<div class="item-actions"><input type="checkbox" class="pago-checkbox" data-idx="${i}" onchange="toggleFixaPago(${i})" ${pago} title="Marcar como pago" />` +
-          `<button class="btn-icon" onclick="editItem('fixa',${i})">&#9999;&#65039;</button>` +
-          `<button class="btn-icon" onclick="removeFixa(${i})">&#128465;&#65039;</button></div></div>`;
-      }).join("");
-  document.getElementById("totalFixas").textContent = fmt(fixas.reduce((s,f)=>s+Number(f.valor||0),0));
-}
-  const lista = document.getElementById("listaFixas");
-  const fixas = md.fixas || [];
-  lista.innerHTML = fixas.length === 0 ? '<div class="empty-msg">Nenhuma conta fixa cadastrada</div>'
     : fixas.map((f,i) => '<div class="item-row"><div class="item-info"><div class="item-name">'+f.nome+'</div>'+(f.venc?'<div class="item-sub">Vence dia '+f.venc+'</div>':'')+'</div><span class="item-value">'+fmt(f.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'fixa\','+i+')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeFixa('+i+')">&#128465;&#65039;</button></div></div>').join("");
   document.getElementById("totalFixas").textContent = fmt(fixas.reduce((s,f)=>s+Number(f.valor||0),0));
 }
@@ -488,33 +474,7 @@ function removeFixa(i) {
   scheduleSave(); renderAll();
 }
 
-
-function toggleFixaPago(i) {
-  const md = getMonthData(currentKey());
-  if (!md.fixas || !md.fixas[i]) return;
-  md.fixas[i].pago = !md.fixas[i].pago;
-  scheduleSave();
-  renderAll();
-}
-
 function renderCartoes(md) {
-  const lista = document.getElementById("listaCartoes");
-  let totalGeral = 0;
-  lista.innerHTML = CARTOES.map(c => {
-    const itens = (md.cartoes[c.id]||{}).itens || [];
-    const total = itens.reduce((s,it)=>s+Number(it.valor||0),0);
-    totalGeral += total;
-    const pago = md.cartoes[c.id] && md.cartoes[c.id].pago ? 'checked' : '';
-    return `<div class="cartao-block"><div class="cartao-header" onclick="toggleCartao('${c.id}')">` +
-      `<div><div class="cartao-name" style="color:${c.cor}">${c.nome}</div><div class="cartao-venc">Vence dia ${c.venc}</div></div>` +
-      `<div style="display:flex;align-items:center;gap:8px;">` +
-      `<span class="cartao-total">${fmt(total)}</span>` +
-      `<input type="checkbox" class="pago-checkbox" data-cartao="${c.id}" onchange="toggleCartaoPago('${c.id}')" ${pago} title="Marcar cartão como pago" />` +
-      `<span class="cartao-arrow" id="arrow-${c.id}">&#9660;</span></div></div>` +
-      `<div class="cartao-body" id="body-${c.id}">${renderCartaoBody(c, itens)}</div></div>`;
-  }).join("");
-  document.getElementById("totalCartoesHeader").textContent = fmt(totalGeral);
-}
   const lista = document.getElementById("listaCartoes");
   let totalGeral = 0;
   lista.innerHTML = CARTOES.map(c => {
@@ -593,15 +553,6 @@ function buildProjecao(cartaoId) {
     const [y, m] = k.split("-");
     return { key: k, label: MESES[parseInt(m)-1] + " " + y, total: result[k] };
   }).filter(p => p.total > 0);
-}
-
-
-function toggleCartaoPago(cartaoId) {
-  const md = getMonthData(currentKey());
-  if (!md.cartoes[cartaoId]) return;
-  md.cartoes[cartaoId].pago = !md.cartoes[cartaoId].pago;
-  scheduleSave();
-  renderAll();
 }
 
 function toggleCartao(id) {
