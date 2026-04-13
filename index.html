@@ -461,6 +461,19 @@ function togglePagoFixa(i, pago) {
   }
 }
 
+function togglePagoCartao(cartaoId, i, pago) {
+  const md = getMonthData(currentKey());
+  if (md.cartoes && md.cartoes[cartaoId] && md.cartoes[cartaoId].itens[i] !== undefined) {
+    md.cartoes[cartaoId].itens[i].pago = pago;
+    scheduleSave();
+    renderCartoes(md);
+    setTimeout(() => {
+      const b = document.getElementById("body-"+cartaoId);
+      if (b && !b.classList.contains("open")) toggleCartao(cartaoId);
+    }, 50);
+  }
+}
+
 function addFixa() {
   const nome = document.getElementById("fixaNome").value.trim();
   const valor = parseFloat(document.getElementById("fixaValor").value);
@@ -520,7 +533,12 @@ function renderCartaoBody(c, itens) {
         const sub = it.tipo==="parcela" ? 'Faltam '+(parseInt(it.parcelaTotal)-parseInt(it.parcelaAtual))+' parcelas'
           : it.tipo==="recorrente" ? "Todo mes" : "";
         const autoTag = it.propagado ? ' <span style="font-size:9px;color:#555;font-style:italic;">auto</span>' : '';
-        return '<div class="item-row"><div class="item-info"><div class="item-name">'+it.nome+' '+badge+autoTag+'</div>'+(sub?'<div class="item-sub">'+sub+'</div>':'')+'</div><span class="item-value">'+fmt(it.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'cartao\','+i+',\''+c.id+'\')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeCartaoItem(\''+c.id+'\','+i+')">&#128465;&#65039;</button></div></div>';
+        return '<div class="item-row">' +
+          '<input type="checkbox" '+(it.pago ? 'checked' : '')+' onchange="togglePagoCartao(\''+c.id+'\','+i+', this.checked)" title="Marcar como pago" style="width:18px;height:18px;cursor:pointer;accent-color:#10b981;flex-shrink:0;" /> ' +
+          '<div class="item-info"><div class="item-name" style="text-decoration:'+(it.pago ? 'line-through' : 'none')+';">'+it.nome+' '+badge+autoTag+'</div>'+(sub?'<div class="item-sub">'+sub+'</div>':'')+"</div>" +
+          '<span class="item-value" style="color:'+(it.pago ? '#10b981' : '#f59e0b')+';">'+fmt(it.valor)+'</span>' +
+          '<div class="item-actions"><button class="btn-icon" onclick="editItem(\'cartao\','+i+',\''+c.id+'\')">✏️</button><button class="btn-icon" onclick="removeCartaoItem(\''+c.id+'\','+i+')">🗑️</button></div>' +
+          '</div>';
       }).join("");
 
   const proj = buildProjecao(c.id);
@@ -695,7 +713,10 @@ function editItem(tipo, idx, cartaoId) {
     html += '<div class="modal-field"><label>Vencimento (dia)</label><input type="number" id="mVenc" value="'+(item.venc||"")+'"/></div>';
     html += '<div class="modal-field" style="display:flex;align-items:center;gap:10px;"><label style="margin:0;min-width:40px;">Pago</label><input type="checkbox" id="mPago" '+(item.pago ? 'checked' : '')+' style="width:20px;height:20px;accent-color:#10b981;cursor:pointer;"/></div>';
   }
-  if (tipo==="cartao" && item.tipo==="parcela") html += '<div class="modal-row"><div class="modal-field"><label>Parcela atual</label><input type="number" id="mParcAtual" value="'+item.parcelaAtual+'"/></div><div class="modal-field"><label>Total parcelas</label><input type="number" id="mParcTotal" value="'+item.parcelaTotal+'"/></div></div>';
+  if (tipo==="cartao") {
+    html += '<div class="modal-field" style="display:flex;align-items:center;gap:10px;"><label style="margin:0;min-width:40px;">Pago</label><input type="checkbox" id="mPagoCartao" '+(item.pago ? 'checked' : '')+' style="width:20px;height:20px;accent-color:#10b981;cursor:pointer;"/></div>';
+    if (item.tipo==="parcela") html += '<div class="modal-row"><div class="modal-field"><label>Parcela atual</label><input type="number" id="mParcAtual" value="'+item.parcelaAtual+'"/></div><div class="modal-field"><label>Total parcelas</label><input type="number" id="mParcTotal" value="'+item.parcelaTotal+'"/></div></div>';
+  }
   document.getElementById("modalFields").innerHTML = html;
   document.getElementById("modalOverlay").classList.add("open");
 }
@@ -718,7 +739,13 @@ function saveModal() {
     md.fixas[idx].venc=document.getElementById("mVenc").value||"";
     md.fixas[idx].pago=document.getElementById("mPago").checked;
   }
-  else { const it=md.cartoes[cartaoId].itens[idx]; it.nome=nome; it.valor=valor; if(it.tipo==="parcela"){it.parcelaAtual=parseInt(document.getElementById("mParcAtual").value);it.parcelaTotal=parseInt(document.getElementById("mParcTotal").value);} }
+  else {
+    const it=md.cartoes[cartaoId].itens[idx];
+    it.nome=nome;
+    it.valor=valor;
+    it.pago=document.getElementById("mPagoCartao").checked;
+    if(it.tipo==="parcela"){it.parcelaAtual=parseInt(document.getElementById("mParcAtual").value);it.parcelaTotal=parseInt(document.getElementById("mParcTotal").value);}
+  }
   const savedCtx = { ...modalCtx };
   closeModal(); scheduleSave(); renderAll();
   if (savedCtx.tipo==="cartao") setTimeout(()=>{ const b=document.getElementById("body-"+savedCtx.cartaoId); if(b&&!b.classList.contains("open")) toggleCartao(savedCtx.cartaoId); },50);
