@@ -344,29 +344,38 @@ function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(data
 function loadLocal() { try { const r = localStorage.getItem(LOCAL_KEY); if(r){ data = JSON.parse(r); return true; } } catch(e){} return false; }
 
 
-// ── Migração definitiva: copia Mai/2025 → Mai/2026, deleta tudo antes de Mai/2026 ──
+// ── Migração definitiva v2 ──
 function migrarDados2025para2026() {
-  // Verificar se já foi migrado (flag no localStorage)
+  // Resetar flag para forçar migração limpa
+  // (remova esta linha após primeira execução bem-sucedida)
+  localStorage.removeItem("migrado2026");
+
   if (localStorage.getItem("migrado2026") === "1") return;
 
-  // Copiar 2025-05 → 2026-05 (preserva todos os dados)
-  if (data["2025-05"]) {
-    data["2026-05"] = JSON.parse(JSON.stringify(data["2025-05"]));
-    // Resetar status pago (novo mês)
-    if (data["2026-05"].fixas) data["2026-05"].fixas.forEach(f => f.pago = false);
-    if (data["2026-05"].cartoes) Object.keys(data["2026-05"].cartoes).forEach(k => {
-      if (data["2026-05"].cartoes[k]) data["2026-05"].cartoes[k].pago = false;
+  // Copiar 2025-05 → 2026-05 preservando TUDO (entradas, fixas, cartoes, contasCorrente)
+  const src = data["2025-05"];
+  if (src) {
+    data["2026-05"] = JSON.parse(JSON.stringify(src));
+    const d = data["2026-05"];
+    // Resetar status pago
+    if (d.fixas) d.fixas.forEach(f => f.pago = false);
+    if (d.cartoes) Object.keys(d.cartoes).forEach(k => {
+      if (d.cartoes[k]) d.cartoes[k].pago = false;
     });
+    console.log("Copiado 2025-05 → 2026-05. Cartões:", Object.keys(d.cartoes||{}).length);
   }
 
-  // Deletar TUDO antes de Maio/2026 (2025 inteiro + Jan-Abr/2026)
+  // Deletar ABSOLUTAMENTE TUDO antes de Maio/2026
   Object.keys(data).forEach(k => {
-    const [y, m] = k.split("-").map(Number);
-    if (y < 2026 || (y === 2026 && m < 5)) delete data[k];
+    const parts = k.split("-");
+    const y = parseInt(parts[0]), m = parseInt(parts[1]);
+    if (y < 2026 || (y === 2026 && m < 5)) {
+      delete data[k];
+      console.log("Deletado:", k);
+    }
   });
 
   localStorage.setItem("migrado2026", "1");
-  console.log("Migração concluída: Mai/2025 → Mai/2026. Dados anteriores deletados.");
   scheduleSave();
 }
 
@@ -920,7 +929,15 @@ function updateCCSaldo(md) {
   const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
   let cartoes = 0;
   CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
-  const saldo = entradas + totalCC - fixas - cartoes;
+
+  // Descontar investimento se marcado
+  const chk = document.getElementById("chkInvestCusto");
+  const sel = document.getElementById("selectPctInvest");
+  const incluirInvest = chk && chk.checked;
+  const pctInvest = incluirInvest ? (parseFloat(sel && sel.value) || 20) : 0;
+  const valorInvest = entradas * (pctInvest / 100);
+
+  const saldo = entradas + totalCC - fixas - cartoes - (incluirInvest ? valorInvest : 0);
   const el = document.getElementById("ccSaldoVal");
   const box = document.getElementById("ccSaldoBox");
   if (!el || !box) return;
