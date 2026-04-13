@@ -387,11 +387,25 @@ function replicarEntradasMensais() {
   }
 }
 
+function replicarFixasMensais() {
+  const key = currentKey();
+  const md = getMonthData(key);
+  if (!Array.isArray(md.fixas) || md.fixas.length === 0) {
+    let [y, m] = key.split("-").map(Number);
+    m--; if (m < 1) { m = 12; y--; }
+    const prevKey = `${y}-${String(m).padStart(2, '0')}`;
+    const prevData = data[prevKey];
+    if (prevData && Array.isArray(prevData.fixas) && prevData.fixas.length > 0) {
+      md.fixas = JSON.parse(JSON.stringify(prevData.fixas));
+    }
+  }
+}
+
 function renderAll() {
   replicarEntradasMensais();
   document.getElementById("monthLabel").textContent = MESES[currentMonth] + " " + currentYear;
   const md = getMonthData(currentKey());
-  renderEntradas(md); renderFixas(md); renderCartoes(md); updateSummary(md);
+  renderEntradas(md); replicarFixasMensais(); renderFixas(md); renderCartoes(md); updateSummary(md);
 }
 
 function renderEntradas(md) {
@@ -440,7 +454,23 @@ function addFixa() {
 
 function removeFixa(i) {
   if (!confirm("Remover conta fixa?")) return;
-  getMonthData(currentKey()).fixas.splice(i, 1);
+  const md = getMonthData(currentKey());
+  const item = md.fixas[i];
+  if (!item) return;
+  const removeFuturos = confirm("Remover esta conta fixa dos meses seguintes também?");
+  md.fixas.splice(i, 1);
+  if (removeFuturos) {
+    // Remover dos meses futuros
+    const [y, m] = currentKey().split("-").map(Number);
+    Object.keys(data).forEach(key => {
+      const [ky, km] = key.split("-").map(Number);
+      if (ky > y || (ky === y && km > m)) {
+        if (data[key] && Array.isArray(data[key].fixas)) {
+          data[key].fixas = data[key].fixas.filter(f => f.nome !== item.nome);
+        }
+      }
+    });
+  }
   scheduleSave(); renderAll();
 }
 
