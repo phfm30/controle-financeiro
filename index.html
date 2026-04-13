@@ -436,19 +436,18 @@ function renderFixas(md) {
   const lista = document.getElementById("listaFixas");
   const fixas = md.fixas || [];
   lista.innerHTML = fixas.length === 0 ? '<div class="empty-msg">Nenhuma conta fixa cadastrada</div>'
-    : fixas.map((f,i) =>
-      '<div class="item-row">' +
-      '<input type="checkbox" '+(f.pago ? 'checked' : '')+' onchange="togglePagoFixa('+i+', this.checked)" title="Marcar como pago" style="width:18px;height:18px;cursor:pointer;accent-color:#10b981;flex-shrink:0;" /> ' +
-      '<div class="item-info">' +
-        '<div class="item-name" style="text-decoration:'+(f.pago ? 'line-through' : 'none')+';">'+f.nome+'</div>' +
-        (f.venc ? '<div class="item-sub">Vence dia '+f.venc+'</div>' : '') +
-      '</div>' +
-      '<span class="item-value" style="color:'+(f.pago ? '#10b981' : '#a78bfa')+';">'+fmt(f.valor)+'</span>' +
-      '<div class="item-actions">' +
-        '<button class="btn-icon" onclick="editItem(\'fixa\','+i+')">&#9999;&#65039;</button>' +
-        '<button class="btn-icon" onclick="removeFixa('+i+')">&#128465;&#65039;</button>' +
-      '</div></div>'
-    ).join("");
+    : fixas.map((f,i) => {
+        const pago = f.pago || false;
+        const chk = pago ? ' checked' : '';
+        const strike = pago ? 'line-through' : 'none';
+        const col = pago ? '#10b981' : '#a78bfa';
+        return '<div class="item-row">' +
+          '<input type="checkbox"' + chk + ' onchange="togglePagoFixa(' + i + ', this.checked)" title="Marcar como pago" style="width:18px;height:18px;cursor:pointer;accent-color:#10b981;flex-shrink:0;"/>' +
+          '<div class="item-info"><div class="item-name" style="text-decoration:' + strike + ';">' + f.nome + '</div>' + (f.venc ? '<div class="item-sub">Vence dia ' + f.venc + '</div>' : '') + '</div>' +
+          '<span class="item-value" style="color:' + col + ';">' + fmt(f.valor) + '</span>' +
+          '<div class="item-actions"><button class="btn-icon" onclick="editItem('fixa',' + i + ')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeFixa(' + i + ')">&#128465;&#65039;</button></div>' +
+          '</div>';
+      }).join("");
   document.getElementById("totalFixas").textContent = fmt(fixas.reduce((s,f)=>s+Number(f.valor||0),0));
 }
 
@@ -460,20 +459,6 @@ function togglePagoFixa(i, pago) {
     renderFixas(md);
   }
 }
-
-function togglePagoCartao(cartaoId, pago) {
-  const md = getMonthData(currentKey());
-  if (md.cartoes && md.cartoes[cartaoId]) {
-    md.cartoes[cartaoId].pago = pago;
-    scheduleSave();
-    renderCartoes(md);
-    setTimeout(() => {
-      const b = document.getElementById("body-"+cartaoId);
-      if (b && b.classList.contains("open")) toggleCartao(cartaoId);
-    }, 50);
-  }
-}
-
 function addFixa() {
   const nome = document.getElementById("fixaNome").value.trim();
   const valor = parseFloat(document.getElementById("fixaValor").value);
@@ -515,22 +500,31 @@ function renderCartoes(md) {
     const itens = (md.cartoes[c.id]||{}).itens || [];
     const total = itens.reduce((s,it)=>s+Number(it.valor||0),0);
     totalGeral += total;
-    const pagoCartao = (md.cartoes[c.id]||{}).pago || false;
-    const checkedAttr = pagoCartao ? ' checked' : '';
-    const nomeStyle = pagoCartao ? 'line-through' : 'none';
-    const totalColor = pagoCartao ? '#10b981' : '#f59e0b';
+    const pago = (md.cartoes[c.id]||{}).pago || false;
+    const chk = pago ? ' checked' : '';
+    const strike = pago ? 'line-through' : 'none';
+    const col = pago ? '#10b981' : '#f59e0b';
     const cid = c.id;
     return '<div class="cartao-block">' +
-      '<div class="cartao-header" onclick="toggleCartao(\'' + cid + '\')">' +
+      '<div class="cartao-header" onclick="toggleCartao('' + cid + '')">' +
       '<div style="display:flex;align-items:center;gap:8px;">' +
-      '<input type="checkbox"' + checkedAttr + ' onclick="event.stopPropagation();togglePagoCartao(\'' + cid + '\',this.checked)" title="Marcar cartao como pago" style="width:18px;height:18px;cursor:pointer;accent-color:#10b981;flex-shrink:0;"/>' +
-      '<div><div class="cartao-name" style="color:' + c.cor + ';text-decoration:' + nomeStyle + ';">' + c.nome + '</div><div class="cartao-venc">Vence dia ' + c.venc + '</div></div>' +
+      '<input type="checkbox"' + chk + ' onclick="event.stopPropagation();togglePagoCartao('' + cid + '',this.checked)" title="Marcar cartao como pago" style="width:18px;height:18px;cursor:pointer;accent-color:#10b981;flex-shrink:0;"/>' +
+      '<div><div class="cartao-name" style="color:' + c.cor + ';text-decoration:' + strike + ';">' + c.nome + '</div><div class="cartao-venc">Vence dia ' + c.venc + '</div></div>' +
       '</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;"><span class="cartao-total" style="color:' + totalColor + ';">' + fmt(total) + '</span><span class="cartao-arrow" id="arrow-' + cid + '">&#9660;</span></div>' +
+      '<div style="display:flex;align-items:center;gap:8px;"><span class="cartao-total" style="color:' + col + ';">' + fmt(total) + '</span><span class="cartao-arrow" id="arrow-' + cid + '">&#9660;</span></div>' +
       '</div>' +
       '<div class="cartao-body" id="body-' + cid + '">' + renderCartaoBody(c, itens) + '</div></div>';
   }).join("");
   document.getElementById("totalCartoesHeader").textContent = fmt(totalGeral);
+}
+
+function togglePagoCartao(cartaoId, pago) {
+  const md = getMonthData(currentKey());
+  if (md.cartoes && md.cartoes[cartaoId]) {
+    md.cartoes[cartaoId].pago = pago;
+    scheduleSave();
+    renderCartoes(md);
+  }
 }
 function renderCartaoBody(c, itens) {
   const listaHtml = itens.length === 0 ? '<div class="empty-msg">Nenhum lancamento</div>'
@@ -542,7 +536,7 @@ function renderCartaoBody(c, itens) {
         const sub = it.tipo==="parcela" ? 'Faltam '+(parseInt(it.parcelaTotal)-parseInt(it.parcelaAtual))+' parcelas'
           : it.tipo==="recorrente" ? "Todo mes" : "";
         const autoTag = it.propagado ? ' <span style="font-size:9px;color:#555;font-style:italic;">auto</span>' : '';
-        return '<div class="item-row"><div class="item-info"><div class="item-name">'+it.nome+' '+badge+autoTag+'</div>'+(sub?'<div class="item-sub">'+sub+'</div>':'')+"</div><span class=\"item-value\">'+fmt(it.valor)+'</span><div class=\"item-actions\"><button class=\"btn-icon\" onclick=\"editItem(\'cartao\','+i+',\''+c.id+'\')\">✏️</button><button class=\"btn-icon\" onclick=\"removeCartaoItem(\''+c.id+'\','+i+')\">🗑️</button></div></div>';
+        return '<div class="item-row"><div class="item-info"><div class="item-name">'+it.nome+' '+badge+autoTag+'</div>'+(sub?'<div class="item-sub">'+sub+'</div>':'')+'</div><span class="item-value">'+fmt(it.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'cartao\','+i+',\''+c.id+'\')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeCartaoItem(\''+c.id+'\','+i+')">&#128465;&#65039;</button></div></div>';
       }).join("");
 
   const proj = buildProjecao(c.id);
@@ -715,7 +709,7 @@ function editItem(tipo, idx, cartaoId) {
     +'<div class="modal-field"><label>Valor (R$)</label><input type="number" id="mValor" value="'+item.valor+'"/></div>';
   if (tipo==="fixa") {
     html += '<div class="modal-field"><label>Vencimento (dia)</label><input type="number" id="mVenc" value="'+(item.venc||"")+'"/></div>';
-    html += '<div class="modal-field" style="display:flex;align-items:center;gap:10px;"><label style="margin:0;min-width:40px;">Pago</label><input type="checkbox" id="mPago" '+(item.pago ? 'checked' : '')+' style="width:20px;height:20px;accent-color:#10b981;cursor:pointer;"/></div>';
+    html += '<div class="modal-field" style="display:flex;align-items:center;gap:10px;"><label style="margin:0;">Pago</label><input type="checkbox" id="mPago"'+(item.pago?' checked':'')+' style="width:20px;height:20px;accent-color:#10b981;cursor:pointer;"/></div>';
   }
   if (tipo==="cartao" && item.tipo==="parcela") html += '<div class="modal-row"><div class="modal-field"><label>Parcela atual</label><input type="number" id="mParcAtual" value="'+item.parcelaAtual+'"/></div><div class="modal-field"><label>Total parcelas</label><input type="number" id="mParcTotal" value="'+item.parcelaTotal+'"/></div></div>';
   document.getElementById("modalFields").innerHTML = html;
