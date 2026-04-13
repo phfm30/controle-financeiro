@@ -153,16 +153,11 @@
   
   <!-- CONTA CORRENTE -->
   <div class="cc-card">
-    <div class="cc-title">&#127974; Conta Corrente do Mês</div>
-    <div class="cc-row">
-      <div class="cc-input-wrap">
-        <span>R$</span>
-        <input class="cc-input" type="number" id="ccValor" inputmode="decimal" step="any" placeholder="0,00" oninput="onCCChange()" />
-      </div>
-      <button class="btn-add" style="width:auto;padding:8px 16px;margin:0;" onclick="saveCCValor()">Salvar</button>
-    </div>
-    <div class="cc-saldo zer" id="ccSaldoBox">
-      <span>Saldo após contas</span>
+    <div class="cc-title">&#127974; Contas Correntes do Mês</div>
+    <div id="listaCC"></div>
+    <button class="btn-add" style="margin-top:10px;" onclick="addCC()">+ Adicionar Conta Corrente</button>
+    <div class="cc-saldo zer" id="ccSaldoBox" style="margin-top:12px;">
+      <span>Saldo após contas (Entradas + Contas Correntes − Fixas − Cartões)</span>
       <strong id="ccSaldoVal" style="color:#f59e0b">R$ 0,00</strong>
     </div>
   </div>
@@ -368,16 +363,20 @@ function migrarDados2025para2026() {
     const [, mm] = oldKey.split("-");
     const newKey = "2026-" + mm;
     data[newKey] = JSON.parse(JSON.stringify(data[oldKey]));
-    // Resetar status pago (novo ano, novo mês)
     if (data[newKey].fixas) data[newKey].fixas.forEach(f => f.pago = false);
     if (data[newKey].cartoes) Object.keys(data[newKey].cartoes).forEach(k => {
       if (data[newKey].cartoes[k]) data[newKey].cartoes[k].pago = false;
     });
-    // Remover chave antiga de 2025
     delete data[oldKey];
   });
 
-  console.log("Migração 2025 → 2026 concluída. Meses migrados:", keys2025.length);
+  // Deletar qualquer dado anterior a Maio/2026 (inclui 2025 e Jan-Abr/2026)
+  Object.keys(data).forEach(k => {
+    const [y, m] = k.split("-").map(Number);
+    if (y < 2026 || (y === 2026 && m < 5)) delete data[k];
+  });
+
+  console.log("Migração 2025 → 2026 concluída. Dados anteriores a 2026 removidos.");
   scheduleSave();
 }
 
@@ -425,8 +424,9 @@ function setSyncStatus(state, msg) {
 function monthKey(y, m) { return y + "-" + String(m+1).padStart(2,"0"); }
 function currentKey() { return monthKey(currentYear, currentMonth); }
 function getMonthData(key) {
-  if (!data[key]) data[key] = { entradas: [], fixas: [], cartoes: {}, contaCorrente: 0 };
-  if (data[key].contaCorrente === undefined) data[key].contaCorrente = 0;
+  if (!data[key]) data[key] = { entradas: [], fixas: [], cartoes: {}, contasCorrente: [] };
+  if (!data[key].contasCorrente) data[key].contasCorrente = data[key].contaCorrente ? [{id: Date.now(), nome: 'Conta Principal', valor: data[key].contaCorrente}] : [];
+  if (data[key].contaCorrente !== undefined) delete data[key].contaCorrente;
   if (!data[key].cartoes) data[key].cartoes = {};
   CARTOES.forEach(c => { if (!data[key].cartoes[c.id]) data[key].cartoes[c.id] = { itens: [] }; });
   return data[key];
@@ -822,8 +822,8 @@ function updateSummary(md) {
   const pctCartoes = entradas > 0 ? Math.round((cartoes/entradas)*100) : 0;
 
   document.getElementById("sumEntradas").textContent = fmt(entradas);
-  document.getElementById("sumFixas").innerHTML = fmt(fixas) + ' <span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px;">' + pctFixas + '%</span>';
-  document.getElementById("sumCartoes").innerHTML = fmt(cartoes) + ' <span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px;">' + pctCartoes + '%</span>';
+  document.getElementById("sumFixas").innerHTML = fmt(fixas) + ' <span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px;">(' + pctFixas + '%)</span>';
+  document.getElementById("sumCartoes").innerHTML = fmt(cartoes) + ' <span style="font-size:11px;color:#f59e0b;font-weight:600;margin-left:4px;">(' + pctCartoes + '%)</span>';
   document.getElementById("sumSaidas").textContent = fmt(saidas);
   document.getElementById("saldoVal").textContent = fmt(saldo);
   const box = document.getElementById("saldoBox");
@@ -875,37 +875,78 @@ function saveModal() {
 }
 
 
-// ── Conta Corrente ──
+// ── Contas Correntes Múltiplas ──
 function renderCC(md) {
-  const cc = Number(md.contaCorrente || 0);
-  document.getElementById("ccValor").value = cc > 0 ? cc : "";
+  const lista = document.getElementById("listaCC");
+  if (!lista) return;
+  const ccs = md.contasCorrente || [];
+  lista.innerHTML = ccs.length === 0
+    ? '<div style="color:#555;font-size:12px;padding:6px 0;">Nenhuma conta adicionada</div>'
+    : ccs.map((cc, i) => `
+      <div class="cc-row" style="margin-bottom:8px;" id="ccRow${cc.id}">
+        <input class="cc-input" style="flex:1.5;padding:8px 10px;font-size:13px;" type="text" placeholder="Nome da conta" value="${cc.nome||''}"
+          oninput="updateCCField(${cc.id},'nome',this.value)" />
+        <div class="cc-input-wrap" style="flex:1;">
+          <span>R$</span>
+          <input class="cc-input" type="number" inputmode="decimal" step="any" placeholder="0,00" value="${cc.valor||''}"
+            oninput="updateCCField(${cc.id},'valor',this.value)" />
+        </div>
+        <button onclick="removeCC(${cc.id})" style="background:#2d0a0a;border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:6px 10px;font-size:16px;cursor:pointer;">✕</button>
+      </div>`).join("");
   updateCCSaldo(md);
 }
 
+function addCC() {
+  const md = getMonthData(currentKey());
+  if (!md.contasCorrente) md.contasCorrente = [];
+  md.contasCorrente.push({ id: Date.now(), nome: "", valor: 0 });
+  scheduleSave();
+  renderCC(md);
+}
+
+function removeCC(id) {
+  const md = getMonthData(currentKey());
+  md.contasCorrente = (md.contasCorrente||[]).filter(c => c.id !== id);
+  scheduleSave();
+  renderCC(md);
+  updateSummary(md);
+  renderInvest(md);
+}
+
+function updateCCField(id, field, val) {
+  const md = getMonthData(currentKey());
+  const cc = (md.contasCorrente||[]).find(c => c.id === id);
+  if (!cc) return;
+  cc[field] = field === "valor" ? (parseFloat(val)||0) : val;
+  scheduleSave();
+  updateCCSaldo(md);
+  updateSummary(md);
+  renderInvest(md);
+}
+
 function updateCCSaldo(md) {
-  const cc = Number(md.contaCorrente || 0);
+  const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
+  const totalCC = (md.contasCorrente||[]).reduce((s,c)=>s+Number(c.valor||0),0);
   const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
   let cartoes = 0;
   CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
-  const saldo = cc - fixas - cartoes;
-  document.getElementById("ccSaldoVal").textContent = fmt(saldo);
+  const saldo = entradas + totalCC - fixas - cartoes;
+  const el = document.getElementById("ccSaldoVal");
   const box = document.getElementById("ccSaldoBox");
+  if (!el || !box) return;
+  el.textContent = fmt(saldo);
   box.className = "cc-saldo " + (saldo>0?"pos":saldo<0?"neg":"zer");
-  document.getElementById("ccSaldoVal").style.color = saldo>0?"#10b981":saldo<0?"#ef4444":"#f59e0b";
+  el.style.color = saldo>0?"#10b981":saldo<0?"#ef4444":"#f59e0b";
 }
 
 function onCCChange() {
   const md = getMonthData(currentKey());
-  const val = parseFloat(document.getElementById("ccValor").value) || 0;
-  md.contaCorrente = val;
   updateCCSaldo(md);
   renderInvest(md);
 }
 
 function saveCCValor() {
   const md = getMonthData(currentKey());
-  const val = parseFloat(document.getElementById("ccValor").value) || 0;
-  md.contaCorrente = val;
   scheduleSave();
   renderAll();
 }
