@@ -89,6 +89,47 @@
   .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
   .btn-cancel { flex: 1; padding: 10px; background: #2a2a4a; color: #aaa; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
   .btn-save { flex: 1; padding: 10px; background: #7c3aed; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+
+  /* ── Conta Corrente ── */
+  .cc-card { background: linear-gradient(135deg, #0d2137, #0a1f30); border-radius: 16px; padding: 16px; margin-bottom: 16px; border: 1px solid #1e4a6e; }
+  .cc-title { font-size: 13px; color: #60a5fa; font-weight: 700; margin-bottom: 12px; display:flex; align-items:center; gap:6px; }
+  .cc-row { display: flex; align-items: center; gap: 10px; }
+  .cc-input-wrap { flex:1; position:relative; }
+  .cc-input-wrap span { position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#60a5fa; font-weight:700; font-size:13px; }
+  .cc-input { width:100%; background:#0f2a40; border:1px solid #1e4a6e; color:#fff; padding:8px 8px 8px 32px; border-radius:10px; font-size:15px; font-weight:700; }
+  .cc-saldo { text-align:center; margin-top:12px; padding:10px; border-radius:10px; }
+  .cc-saldo.pos { background:#052e16; border:1px solid #10b981; }
+  .cc-saldo.neg { background:#2d0a0a; border:1px solid #ef4444; }
+  .cc-saldo.zer { background:#1a1a00; border:1px solid #f59e0b; }
+  .cc-saldo span { font-size:11px; color:#aaa; display:block; }
+  .cc-saldo strong { font-size:20px; font-weight:800; }
+
+  /* ── Percentuais ── */
+  .pct-bar-wrap { margin-top:6px; }
+  .pct-bar-bg { background:#2a2a4a; border-radius:6px; height:6px; overflow:hidden; margin-top:3px; }
+  .pct-bar-fill { height:6px; border-radius:6px; transition: width 0.4s; }
+  .pct-label { font-size:10px; color:#888; margin-top:2px; text-align:right; }
+
+  /* ── Investimento Ideal ── */
+  .invest-card { background: linear-gradient(135deg, #0d1f0d, #0a2a0a); border-radius: 16px; padding: 16px; margin-bottom: 16px; border: 1px solid #1a4a1a; }
+  .invest-title { font-size:13px; color:#10b981; font-weight:700; margin-bottom:10px; display:flex; align-items:center; gap:6px; }
+  .invest-row { display:flex; justify-content:space-between; align-items:center; padding:5px 0; border-bottom:1px solid #1a3a1a; font-size:12px; }
+  .invest-row:last-child { border-bottom:none; }
+  .invest-label { color:#aaa; }
+  .invest-value { font-weight:700; }
+  .invest-highlight { background:#0a3a0a; border-radius:10px; padding:10px; margin-top:10px; text-align:center; }
+  .invest-highlight span { font-size:11px; color:#aaa; display:block; }
+  .invest-highlight strong { font-size:22px; font-weight:800; color:#10b981; }
+
+  /* ── Projeção Acumulada ── */
+  .proj-acum-card { background:#1a1a2e; border-radius:12px; padding:12px; margin-top:12px; border:1px solid #2a2a4a; }
+  .proj-acum-title { font-size:12px; color:#a78bfa; font-weight:700; margin-bottom:8px; }
+  .proj-acum-row { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #2a2a4a; font-size:12px; }
+  .proj-acum-row:last-child { border-bottom:none; }
+  .proj-acum-month { color:#aaa; }
+  .proj-acum-val { color:#f59e0b; font-weight:700; }
+  .proj-acum-current { background:#1e1e38; border-radius:6px; padding:2px 6px; }
+
 </style>
 </head>
 <body>
@@ -109,6 +150,33 @@
     <div class="summary-row total"><span class="summary-label">Total Saidas</span><span class="summary-value red" id="sumSaidas">R$ 0,00</span></div>
     <div class="saldo-big zero" id="saldoBox"><span>Saldo do Mes</span><strong id="saldoVal" style="color:#f59e0b">R$ 0,00</strong></div>
   </div>
+  
+  <!-- CONTA CORRENTE -->
+  <div class="cc-card">
+    <div class="cc-title">&#127974; Conta Corrente do Mês</div>
+    <div class="cc-row">
+      <div class="cc-input-wrap">
+        <span>R$</span>
+        <input class="cc-input" type="number" id="ccValor" inputmode="decimal" step="any" placeholder="0,00" oninput="onCCChange()" />
+      </div>
+      <button class="btn-add" style="width:auto;padding:8px 16px;margin:0;" onclick="saveCCValor()">Salvar</button>
+    </div>
+    <div class="cc-saldo zer" id="ccSaldoBox">
+      <span>Saldo após contas</span>
+      <strong id="ccSaldoVal" style="color:#f59e0b">R$ 0,00</strong>
+    </div>
+  </div>
+
+  <!-- INVESTIMENTO IDEAL -->
+  <div class="invest-card" id="investCard">
+    <div class="invest-title">&#127807; Investimento Ideal do Mês</div>
+    <div id="investRows"></div>
+    <div class="invest-highlight">
+      <span>Disponível para investir (50/30/20)</span>
+      <strong id="investIdeal">R$ 0,00</strong>
+    </div>
+  </div>
+
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)">
       <h2>&#128154; Entradas</h2>
@@ -157,7 +225,7 @@
       <h2>&#128179; Cartoes de Credito</h2>
       <div style="display:flex;align-items:center;gap:8px;"><span class="total-badge" id="totalCartoesHeader">R$ 0,00</span><span class="arrow">&#9660;</span></div>
     </div>
-    <div class="section-body" id="bodyCartoes"><div id="listaCartoes"></div></div>
+    <div class="section-body" id="bodyCartoes"><div id="listaCartoes"></div><div class="proj-acum-card"><div class="proj-acum-title">&#128200; Projeção Acumulada — Todos os Cartões</div><div id="projAcumLista"></div></div></div>
   </div>
 </div>
 <div class="modal-overlay" id="modalOverlay">
@@ -186,7 +254,7 @@ const CARTOES = [
 ];
 const LOCAL_KEY = "cf_data_v4";
 
-let currentYear = 2025, currentMonth = 4;
+let currentYear = 2026, currentMonth = 3;
 let data = {};
 let saveTimer = null;
 let modalCtx = null;
@@ -312,7 +380,8 @@ function setSyncStatus(state, msg) {
 function monthKey(y, m) { return y + "-" + String(m+1).padStart(2,"0"); }
 function currentKey() { return monthKey(currentYear, currentMonth); }
 function getMonthData(key) {
-  if (!data[key]) data[key] = { entradas: [], fixas: [], cartoes: {} };
+  if (!data[key]) data[key] = { entradas: [], fixas: [], cartoes: {}, contaCorrente: 0 };
+  if (data[key].contaCorrente === undefined) data[key].contaCorrente = 0;
   if (!data[key].cartoes) data[key].cartoes = {};
   CARTOES.forEach(c => { if (!data[key].cartoes[c.id]) data[key].cartoes[c.id] = { itens: [] }; });
   return data[key];
@@ -405,7 +474,15 @@ function renderAll() {
   replicarEntradasMensais();
   document.getElementById("monthLabel").textContent = MESES[currentMonth] + " " + currentYear;
   const md = getMonthData(currentKey());
-  renderEntradas(md); replicarFixasMensais(); renderFixas(md); renderCartoes(md); updateSummary(md);
+  renderEntradas(md);
+  replicarFixasMensais();
+  renderFixas(md);
+  renderCartoes(md);
+  updateSummary(md);
+  renderCC(md);
+  renderInvest(md);
+  renderProjAcum();
+  renderPercentuais(md);
 }
 
 function renderEntradas(md) {
@@ -740,6 +817,136 @@ function saveModal() {
   const savedCtx = { ...modalCtx };
   closeModal(); scheduleSave(); renderAll();
   if (savedCtx.tipo==="cartao") setTimeout(()=>{ const b=document.getElementById("body-"+savedCtx.cartaoId); if(b&&!b.classList.contains("open")) toggleCartao(savedCtx.cartaoId); },50);
+}
+
+
+// ── Conta Corrente ──
+function renderCC(md) {
+  const cc = Number(md.contaCorrente || 0);
+  document.getElementById("ccValor").value = cc > 0 ? cc : "";
+  updateCCSaldo(md);
+}
+
+function updateCCSaldo(md) {
+  const cc = Number(md.contaCorrente || 0);
+  const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
+  let cartoes = 0;
+  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
+  const saldo = cc - fixas - cartoes;
+  document.getElementById("ccSaldoVal").textContent = fmt(saldo);
+  const box = document.getElementById("ccSaldoBox");
+  box.className = "cc-saldo " + (saldo>0?"pos":saldo<0?"neg":"zer");
+  document.getElementById("ccSaldoVal").style.color = saldo>0?"#10b981":saldo<0?"#ef4444":"#f59e0b";
+}
+
+function onCCChange() {
+  const md = getMonthData(currentKey());
+  const val = parseFloat(document.getElementById("ccValor").value) || 0;
+  md.contaCorrente = val;
+  updateCCSaldo(md);
+  renderInvest(md);
+}
+
+function saveCCValor() {
+  const md = getMonthData(currentKey());
+  const val = parseFloat(document.getElementById("ccValor").value) || 0;
+  md.contaCorrente = val;
+  scheduleSave();
+  renderAll();
+}
+
+// ── Investimento Ideal (regra 50/30/20) ──
+function renderInvest(md) {
+  const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
+  const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
+  let cartoes = 0;
+  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
+  const saidas = fixas + cartoes;
+  const saldo = entradas - saidas;
+  const ideal20 = entradas * 0.20;
+  const ideal10 = entradas * 0.10;
+  const pctGasto = entradas > 0 ? Math.round((saidas/entradas)*100) : 0;
+  const disponivel = Math.max(0, saldo);
+
+  const rows = [
+    { label: "Renda total", value: fmt(entradas), color: "#10b981" },
+    { label: "Total de saídas", value: fmt(saidas) + " (" + pctGasto + "%)", color: pctGasto > 80 ? "#ef4444" : "#f59e0b" },
+    { label: "Meta 20% (recomendado)", value: fmt(ideal20), color: "#a78bfa" },
+    { label: "Meta 10% (conservador)", value: fmt(ideal10), color: "#60a5fa" },
+    { label: "Saldo disponível", value: fmt(saldo), color: saldo >= 0 ? "#10b981" : "#ef4444" },
+  ];
+
+  document.getElementById("investRows").innerHTML = rows.map(r =>
+    '<div class="invest-row"><span class="invest-label">'+r.label+'</span><span class="invest-value" style="color:'+r.color+'">'+r.value+'</span></div>'
+  ).join("");
+  document.getElementById("investIdeal").textContent = fmt(Math.min(disponivel, ideal20));
+}
+
+// ── Projeção Acumulada de todos os cartões ──
+function renderProjAcum() {
+  const result = {};
+  CARTOES.forEach(c => {
+    Object.keys(data).forEach(key => {
+      const md = data[key];
+      if (!md || !md.cartoes || !md.cartoes[c.id]) return;
+      (md.cartoes[c.id].itens || []).forEach(item => {
+        if (item.tipo !== "parcela" || item.propagado) return;
+        const [sy, sm] = key.split("-").map(Number); const startM = sm - 1;
+        const atual = parseInt(item.parcelaAtual), total = parseInt(item.parcelaTotal);
+        for (let i = 0; i <= total - atual; i++) {
+          let nm = startM + i, ny = sy;
+          while (nm > 11) { nm -= 12; ny++; }
+          const k = monthKey(ny, nm);
+          result[k] = (result[k] || 0) + Number(item.valor || 0);
+        }
+      });
+    });
+    // recorrentes
+    const curMd = getMonthData(currentKey());
+    const recorrentes = ((curMd.cartoes[c.id]||{}).itens||[]).filter(it => it.tipo==="recorrente");
+    for (let i = 0; i < 12; i++) {
+      let nm = currentMonth + i, ny = currentYear;
+      while (nm > 11) { nm -= 12; ny++; }
+      const k = monthKey(ny, nm);
+      recorrentes.forEach(r => { result[k] = (result[k]||0) + Number(r.valor||0); });
+    }
+  });
+
+  const curKey = currentKey();
+  const sorted = Object.keys(result).sort().filter(k => result[k] > 0);
+  const lista = document.getElementById("projAcumLista");
+  if (!lista) return;
+  lista.innerHTML = sorted.length === 0
+    ? '<div class="empty-msg">Sem projeção disponível</div>'
+    : sorted.map(k => {
+        const [y, m] = k.split("-");
+        const label = MESES[parseInt(m)-1] + " " + y;
+        const isCur = k === curKey;
+        return '<div class="proj-acum-row' + (isCur ? ' proj-acum-current' : '') + '">' +
+          '<span class="proj-acum-month">' + (isCur ? '▶ ' : '') + label + '</span>' +
+          '<span class="proj-acum-val">' + fmt(result[k]) + '</span></div>';
+      }).join("");
+}
+
+// ── Percentuais nas seções ──
+function renderPercentuais(md) {
+  const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
+  const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
+  let cartoes = 0;
+  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
+  const total = fixas + cartoes;
+
+  const pctFixas = total > 0 ? Math.round((fixas/total)*100) : 0;
+  const pctCartoes = total > 0 ? Math.round((cartoes/total)*100) : 0;
+  const pctFixasRenda = entradas > 0 ? Math.round((fixas/entradas)*100) : 0;
+  const pctCartoesRenda = entradas > 0 ? Math.round((cartoes/entradas)*100) : 0;
+
+  // Atualiza badge das seções
+  const elFixas = document.getElementById("totalFixas");
+  if (elFixas) elFixas.textContent = fmt(fixas) + " · " + pctFixasRenda + "% da renda";
+
+  const elCartoes = document.getElementById("totalCartoesHeader");
+  if (elCartoes) elCartoes.textContent = fmt(cartoes) + " · " + pctCartoesRenda + "% da renda";
 }
 
 function toggleSection(header) {
