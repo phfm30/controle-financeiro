@@ -344,39 +344,29 @@ function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(data
 function loadLocal() { try { const r = localStorage.getItem(LOCAL_KEY); if(r){ data = JSON.parse(r); return true; } } catch(e){} return false; }
 
 
-// ── Migração: move TODOS os dados de 2025 → 2026 ──
+// ── Migração definitiva: copia Mai/2025 → Mai/2026, deleta tudo antes de Mai/2026 ──
 function migrarDados2025para2026() {
-  const keys2025 = Object.keys(data).filter(k => k.startsWith("2025-"));
-  if (keys2025.length === 0) return; // nada a migrar
+  // Verificar se já foi migrado (flag no localStorage)
+  if (localStorage.getItem("migrado2026") === "1") return;
 
-  // Verificar se já existe algum dado em 2026 (migração já feita)
-  const keys2026 = Object.keys(data).filter(k => k.startsWith("2026-"));
-  const ja2026temDados = keys2026.some(k => {
-    const d = data[k];
-    return (d.entradas && d.entradas.length > 0) ||
-           (d.fixas && d.fixas.length > 0) ||
-           (d.cartoes && Object.keys(d.cartoes).some(c => d.cartoes[c] && d.cartoes[c].itens && d.cartoes[c].itens.length > 0));
-  });
-  if (ja2026temDados) return; // já migrado, não sobrescrever
-
-  keys2025.forEach(oldKey => {
-    const [, mm] = oldKey.split("-");
-    const newKey = "2026-" + mm;
-    data[newKey] = JSON.parse(JSON.stringify(data[oldKey]));
-    if (data[newKey].fixas) data[newKey].fixas.forEach(f => f.pago = false);
-    if (data[newKey].cartoes) Object.keys(data[newKey].cartoes).forEach(k => {
-      if (data[newKey].cartoes[k]) data[newKey].cartoes[k].pago = false;
+  // Copiar 2025-05 → 2026-05 (preserva todos os dados)
+  if (data["2025-05"]) {
+    data["2026-05"] = JSON.parse(JSON.stringify(data["2025-05"]));
+    // Resetar status pago (novo mês)
+    if (data["2026-05"].fixas) data["2026-05"].fixas.forEach(f => f.pago = false);
+    if (data["2026-05"].cartoes) Object.keys(data["2026-05"].cartoes).forEach(k => {
+      if (data["2026-05"].cartoes[k]) data["2026-05"].cartoes[k].pago = false;
     });
-    delete data[oldKey];
-  });
+  }
 
-  // Deletar qualquer dado anterior a Maio/2026 (inclui 2025 e Jan-Abr/2026)
+  // Deletar TUDO antes de Maio/2026 (2025 inteiro + Jan-Abr/2026)
   Object.keys(data).forEach(k => {
     const [y, m] = k.split("-").map(Number);
     if (y < 2026 || (y === 2026 && m < 5)) delete data[k];
   });
 
-  console.log("Migração 2025 → 2026 concluída. Dados anteriores a 2026 removidos.");
+  localStorage.setItem("migrado2026", "1");
+  console.log("Migração concluída: Mai/2025 → Mai/2026. Dados anteriores deletados.");
   scheduleSave();
 }
 
