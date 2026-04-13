@@ -222,26 +222,48 @@ function fromFirestore(val) {
   return null;
 }
 
-async function fbLoad() {
-  const res = await fetch(FB_DOC_URL);
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  const json = await res.json();
-  if (!json.fields) return null;
-  return fromFirestore({ mapValue: { fields: json.fields } });
+async function fbLoad(timeoutMs = 7000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    console.log('fbLoad: iniciando fetch', FB_DOC_URL);
+    const res = await fetch(FB_DOC_URL, { signal: controller.signal, cache: 'no-store', mode: 'cors' });
+    clearTimeout(timer);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const json = await res.json();
+    if (!json.fields) return null;
+    return fromFirestore({ mapValue: { fields: json.fields } });
+  } catch (e) {
+    clearTimeout(timer);
+    console.error('fbLoad error:', e);
+    throw e;
+  }
 }
 
-async function fbSave(obj) {
+async function fbSave(obj, timeoutMs = 7000) {
   const fields = {};
   for (const k in obj) fields[k] = toFirestore(obj[k]);
-  const res = await fetch(FB_DOC_URL, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fields })
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error("Save failed: " + err);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(FB_DOC_URL, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+      signal: controller.signal,
+      mode: 'cors',
+      cache: 'no-store'
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error('Save failed: ' + err);
+    }
+  } catch (e) {
+    clearTimeout(timer);
+    console.error('fbSave error:', e);
+    throw e;
   }
 }
 
@@ -301,10 +323,6 @@ function changeMonth(dir) {
   currentMonth += dir;
   if (currentMonth > 11) { currentMonth = 0; currentYear++; }
   if (currentMonth < 0) { currentMonth = 11; currentYear--; }
-  console.log('Mudou para:', currentMonth, currentYear);
-  currentMonth += dir;
-  if (currentMonth > 11) { currentMonth = 0; currentYear++; }
-  if (currentMonth < 0) { currentMonth = 11; currentYear--; }
   renderAll();
 }
 
@@ -361,7 +379,7 @@ function replicarEntradasMensais() {
      let [y, m] = key.split("-").map(Number);
      m--; if(m < 1) { m = 12; y--; }
      const prevKey = `${y}-${String(m).padStart(2, '0')}`;
-     const prevData = localData.months[prevKey];
+     const prevData = data[prevKey];
      if (prevData && prevData.entradas.length > 0) {
         md.entradas = JSON.parse(JSON.stringify(prevData.entradas));
         // Não salvamos automaticamente para o usuário poder editar antes de persistir
