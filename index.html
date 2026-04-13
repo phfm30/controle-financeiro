@@ -90,9 +90,8 @@
   .btn-cancel { flex: 1; padding: 10px; background: #2a2a4a; color: #aaa; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; }
   .btn-save { flex: 1; padding: 10px; background: #7c3aed; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
 
-  .item-row.pago { opacity: 0.4; border-left: 5px solid #10b981 !important; background: #0d2a1a !important; }
-  .cartao-block.pago { border-left: 5px solid #10b981 !important; background: #0d2116 !important; }
-  .check-pago { width: 18px; height: 18px; margin-right: 10px; accent-color: #10b981; cursor: pointer; }
+.pago-item { opacity: 0.6; border-left: 4px solid #10b981; }
+.check-pago { width: 20px; height: 20px; margin-right: 8px; accent-color: #10b981; }
 </style>
 </head>
 <body>
@@ -370,15 +369,14 @@ function replicarEntradasMensais() {
 }
 
 
-function toggleFixaPago(idx) {
+function togglePagoFixa(i) {
   const md = getMonthData(currentKey());
-  md.fixas[idx].pago = !md.fixas[idx].pago;
+  md.fixas[i].pago = !md.fixas[i].pago;
   scheduleSave();
   renderAll();
 }
-function toggleCartaoPago(id) {
+function togglePagoCartao(id) {
   const md = getMonthData(currentKey());
-  if (!md.cartoes[id]) md.cartoes[id] = { itens: [] };
   md.cartoes[id].pago = !md.cartoes[id].pago;
   scheduleSave();
   renderAll();
@@ -418,26 +416,8 @@ function removeEntrada(i) {
 function renderFixas(md) {
   const lista = document.getElementById("listaFixas");
   const fixas = md.fixas || [];
-  let html = "";
-  if (fixas.length === 0) {
-    html = '<div class="empty-msg">Nenhuma conta fixa cadastrada</div>';
-  } else {
-    for (let i = 0; i < fixas.length; i++) {
-        const f = fixas[i];
-        const isPago = f.pago ? ' pago' : '';
-        const isChecked = f.pago ? 'checked' : '';
-        html += '<div class="item-row' + isPago + '">' +
-               '<input type="checkbox" ' + isChecked + ' class="check-pago" onclick="event.stopPropagation(); toggleFixaPago(' + i + ')">' +
-               '<div class="item-info"><div class="item-name">' + f.nome + '</div>' +
-               (f.venc ? '<div class="item-sub">Vence dia ' + f.venc + '</div>' : '') +
-               '</div><span class="item-value">' + fmt(f.valor) + '</span>' +
-               '<div class="item-actions">' +
-               '<button class="btn-icon" onclick="editItem(\'fixa\',' + i + ')">&#9999;&#65039;</button>' +
-               '<button class="btn-icon" onclick="removeFixa(' + i + ')">&#128465;&#65039;</button>' +
-               '</div></div>';
-    }
-  }
-  lista.innerHTML = html;
+  lista.innerHTML = fixas.length === 0 ? '<div class="empty-msg">Nenhuma conta fixa cadastrada</div>'
+    : fixas.map((f,i) => '<div class="item-row' + (f.pago ? ' pago-item' : '') + '"><input type="checkbox" class="check-pago" ' + (f.pago ? 'checked' : '') + ' onclick="togglePagoFixa(' + i + ')" /><div class="item-info"><div class="item-info"><div class="item-name">'+f.nome+'</div>'+(f.venc?'<div class="item-sub">Vence dia '+f.venc+'</div>':'')+'</div><span class="item-value">'+fmt(f.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'fixa\','+i+')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeFixa('+i+')">&#128465;&#65039;</button></div></div>').join("");
   document.getElementById("totalFixas").textContent = fmt(fixas.reduce((s,f)=>s+Number(f.valor||0),0));
 }
 
@@ -462,30 +442,12 @@ function removeFixa(i) {
 function renderCartoes(md) {
   const lista = document.getElementById("listaCartoes");
   let totalGeral = 0;
-  let html = "";
-  for(let i=0; i<CARTOES.length; i++) {
-    const c = CARTOES[i];
-    const md_c = md.cartoes[c.id] || {itens:[]};
-    const total = md_c.itens.reduce((s,it)=>s+Number(it.valor||0),0);
-    totalGeral += total;
-    const isChecked = md_c.pago ? "checked" : "";
-    const isPagoClass = md_c.pago ? " pago" : "";
-
-    html += '<div class="cartao-block' + isPagoClass + '"><div class="cartao-header" onclick="toggleCartao(\''+ c.id +'\')">' +
-      '<div style="display:flex;align-items:center;">' +
-      '<input type="checkbox" ' + isChecked + ' class="check-pago" onclick="event.stopPropagation(); toggleCartaoPago(\''+c.id+'\')">' +
-      '<div><div class="cartao-name" style="color:'+c.cor+'">'+c.nome+'</div><div class="cartao-venc">Vence dia '+c.venc+'</div></div>' +
-      '</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;"><span class="cartao-total">'+fmt(total)+'</span><span class="cartao-arrow" id="arrow-'+c.id+'">&#9660;</span></div></div>' +
-      '<div class="cartao-body" id="body-'+c.id+'">'+renderCartaoBody(c, md_c.itens)+'</div></div>';
-  }
-  lista.innerHTML = html;
-  document.getElementById("totalCartoesHeader").textContent = fmt(totalGeral);
-}).itens || [];
+  lista.innerHTML = CARTOES.map(c => {
+    const itens = (md.cartoes[c.id]||{}).itens || [];
     const total = itens.reduce((s,it)=>s+Number(it.valor||0),0);
     totalGeral += total;
     return '<div class="cartao-block"><div class="cartao-header" onclick="toggleCartao(\''+ c.id +'\')">' +
-      '<div><div class="cartao-name" style="color:'+c.cor+'">'+c.nome+'</div><div class="cartao-venc">Vence dia '+c.venc+'</div></div>' +
+      '<div><input type="checkbox" class="check-pago" ' + (md.cartoes[c.id] && md.cartoes[c.id].pago ? 'checked' : '') + ' onclick="togglePagoCartao(\''+c.id+'\')" /><div class="cartao-name" style="color:'+c.cor+'">'+c.nome+'</div><div class="cartao-venc">Vence dia '+c.venc+'</div></div>' +
       '<div style="display:flex;align-items:center;gap:8px;"><span class="cartao-total">'+fmt(total)+'</span><span class="cartao-arrow" id="arrow-'+c.id+'">&#9660;</span></div></div>' +
       '<div class="cartao-body" id="body-'+c.id+'">'+renderCartaoBody(c, itens)+'</div></div>';
   }).join("");
