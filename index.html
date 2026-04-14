@@ -658,7 +658,7 @@ function renderCartaoBody(c, itens) {
         const sub = it.tipo==="parcela" ? 'Faltam '+(parseInt(it.parcelaTotal)-parseInt(it.parcelaAtual))+' parcelas'
           : it.tipo==="recorrente" ? "Todo mes" : "";
         const autoTag = it.propagado ? ' <span style="font-size:9px;color:#555;font-style:italic;">auto</span>' : '';
-        return '<div class="item-row"><div class="item-info"><div class="item-name">'+it.nome+' '+badge+autoTag+'</div>'+(sub?'<div class="item-sub">'+sub+'</div>':'')+'</div><span class="item-value">'+fmt(it.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'cartao\','+i+',\''+c.id+'\')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeCartaoItem(\''+c.id+'\','+i+')">&#128465;&#65039;</button></div></div>';
+        return '<div class="item-row"><div class="item-info"><div class="item-name">'+it.nome+' '+badge+autoTag+'</div>'+(it.dia?'<div class="item-sub" style="font-size:10px;color:#888;">'+String(it.dia).padStart(2,'0')+'/'+String(currentMonth+1).padStart(2,'0')+'</div>':'')+(sub?'<div class="item-sub">'+sub+'</div>':'')+'</div><span class="item-value">'+fmt(it.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'cartao\','+i+',\''+c.id+'\')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeCartaoItem(\''+c.id+'\','+i+')">&#128465;&#65039;</button></div></div>';
       }).join("");
 
   const proj = buildProjecao(c.id);
@@ -673,7 +673,7 @@ function renderCartaoBody(c, itens) {
     '<button class="btn-add-small" onclick="showForm(\'form-'+c.id+'\')">+ Adicionar lancamento</button>' +
     '<div class="add-form" id="form-'+c.id+'" style="display:none;"><h4>Novo Lancamento - '+c.nome+'</h4>' +
     '<div class="form-row"><div class="form-group"><label>Descricao</label><input type="text" data-field="nome" placeholder="Ex: Academia"/></div>' +
-    '<div class="form-group" style="max-width:120px;"><label>Valor (R$)</label><input type="text" data-field="valor" placeholder="0,00" inputmode="decimal"/></div></div>' +
+    '<div class="form-group" style="max-width:120px;"><label>Valor (R$)</label><input type="text" data-field="valor" placeholder="0,00" inputmode="decimal"/></div><div class="form-group" style="max-width:70px;"><label>Dia (opcional)</label><input type="number" data-field="dia" placeholder="Ex: 13" min="1" max="31"/></div></div>' +
     '<div class="form-row"><div class="form-group"><label>Tipo</label><select data-field="tipo" onchange="toggleParcelaFields(this)"><option value="avulso">Avulso</option><option value="parcela">Parcelado</option><option value="recorrente">Recorrente</option></select></div></div>' +
     '<div class="parcela-fields" style="display:none;"><div class="form-row">' +
     '<div class="form-group"><label>Parcela atual</label><input type="number" data-field="parcAtual" placeholder="Ex: 2" min="1"/></div>' +
@@ -759,7 +759,9 @@ function addCartaoItem(cartaoId) {
     return;
   }
 
-  const item = { nome, valor, tipo };
+  const diaField = form.querySelector('[data-field="dia"]');
+  const dia = diaField ? (parseInt(diaField.value) || null) : null;
+  const item = { nome, valor, tipo, dia };
 
   if (tipo === "parcela") {
     const pAt = form.querySelector('[data-field="parcAtual"]').value;
