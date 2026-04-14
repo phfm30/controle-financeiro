@@ -160,10 +160,15 @@
       <span>&#128197; Saldo inicial do próximo mês</span>
       <strong id="ccSaldoVal" style="color:#f59e0b">R$ 0,00</strong>
     </div>
-    <button id="btnTransferirSaldo" onclick="transferirSaldoProximoMes()"
-      style="margin-top:8px;width:100%;padding:9px;background:#0a2a3a;border:1px solid #0ea5e9;color:#38bdf8;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">
-      &#8594; Transferir como saldo inicial do próximo mês
-    </button>
+    <div style="margin-top:8px;display:flex;gap:6px;align-items:center;">
+      <input type="number" id="inputTransferirValor" placeholder="Valor a transferir"
+        style="flex:1;background:#0a1a2a;border:1px solid #0ea5e9;color:#38bdf8;padding:8px;border-radius:8px;font-size:12px;min-width:0;"
+        step="0.01" />
+      <button onclick="transferirSaldoProximoMes()"
+        style="padding:9px 12px;background:#0a2a3a;border:1px solid #0ea5e9;color:#38bdf8;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
+        &#8594; Transferir
+      </button>
+    </div>
   </div>
 
   <div class="section">
@@ -921,14 +926,14 @@ function fecharGerenciarCartoes() {
 function renderGerenciarCartoes() {
   const lista = document.getElementById("listaGerenciarCartoes");
   if (!lista) return;
-  lista.innerHTML = CARTOES.map((c,i) =>
-    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
-    '<span style="width:12px;height:12px;border-radius:50%;background:'+c.cor+';display:inline-block;flex-shrink:0;"></span>' +
-    '<span style="flex:1;font-size:13px;">'+c.nome+'</span>' +
-    '<span style="font-size:11px;color:#888;">Venc. dia '+c.venc+'</span>' +
-    '<button onclick="excluirCartao(''+c.id+'')" style="background:#2d0a0a;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;">&#128465;</button>' +
-    '</div>'
-  ).join("") || '<div style="color:#555;font-size:12px;">Nenhum cartão cadastrado</div>';
+  lista.innerHTML = CARTOES.map(function(c) {
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+    '<span style="width:12px;height:12px;border-radius:50%;background:' + c.cor + ';display:inline-block;flex-shrink:0;"></span>' +
+    '<span style="flex:1;font-size:13px;">' + c.nome + '</span>' +
+    '<span style="font-size:11px;color:#888;">Venc. dia ' + c.venc + '</span>' +
+    '<button onclick="excluirCartao(\'' + c.id + '\')" style="background:#2d0a0a;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;">&#128465;</button>' +
+    '</div>';
+  }).join("") || '<div style="color:#555;font-size:12px;">Nenhum cart\u00e3o cadastrado</div>';
 }
 function adicionarCartao() {
   const nome = (document.getElementById("novoCartaoNome").value || "").trim();
@@ -957,13 +962,18 @@ function excluirCartao(id) {
 
 // ── Transferir saldo para próximo mês ──
 function transferirSaldoProximoMes() {
+  const inputEl = document.getElementById("inputTransferirValor");
+  const valorInput = inputEl ? parseFloat(inputEl.value) : NaN;
+
+  // Se o usuário não digitou nada, usar o saldo calculado
   const md = getMonthData(currentKey());
   const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
   const totalCC = (md.contasCorrente||[]).reduce((s,c)=>s+Number(c.valor||0),0);
   const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
   let cartoes = 0;
   CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
-  const saldo = entradas + totalCC - fixas - cartoes;
+  const saldoCalc = entradas + totalCC - fixas - cartoes;
+  const valorFinal = (!isNaN(valorInput) && inputEl && inputEl.value !== "") ? valorInput : saldoCalc;
 
   // Calcular chave do próximo mês
   let nm = currentMonth + 1, ny = currentYear;
@@ -975,12 +985,12 @@ function transferirSaldoProximoMes() {
   // Verificar se já existe entrada de saldo transferido
   const existing = nextMd.contasCorrente.find(c => c._transferido);
   if (existing) {
-    existing.valor = saldo;
+    existing.valor = valorFinal;
   } else {
-    nextMd.contasCorrente.push({ id: Date.now(), nome: "Saldo anterior", valor: saldo, _transferido: true });
+    nextMd.contasCorrente.push({ id: Date.now(), nome: "Saldo anterior", valor: valorFinal, _transferido: true });
   }
   scheduleSave();
-  alert("Saldo de " + fmt(saldo) + " transferido para " + MESES[nm] + "/" + ny + "!");
+  alert("Transferido " + fmt(valorFinal) + " para " + MESES[nm] + "/" + ny + "!");
 }
 
 // ── Toggle Projeção Acumulada ──
@@ -1057,6 +1067,9 @@ function updateCCSaldo(md) {
   const box = document.getElementById("ccSaldoBox");
   if (!el || !box) return;
   el.textContent = fmt(saldo);
+  // Preencher input de transferência com saldo calculado (se vazio)
+  const inputT = document.getElementById("inputTransferirValor");
+  if (inputT && inputT.value === "") inputT.placeholder = "Sugerido: " + fmt(saldo);
   box.className = "cc-saldo " + (saldo>0?"pos":saldo<0?"neg":"zer");
   el.style.color = saldo>0?"#10b981":saldo<0?"#ef4444":"#f59e0b";
 }
