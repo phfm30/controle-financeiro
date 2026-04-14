@@ -157,9 +157,13 @@
     <div id="listaCC"></div>
     <button class="btn-add" style="margin-top:10px;" onclick="addCC()">+ Adicionar Conta Corrente</button>
     <div class="cc-saldo zer" id="ccSaldoBox" style="margin-top:12px;">
-      <span>Saldo após contas (Entradas + Contas Correntes − Fixas − Cartões)</span>
+      <span>&#128197; Saldo inicial do próximo mês</span>
       <strong id="ccSaldoVal" style="color:#f59e0b">R$ 0,00</strong>
     </div>
+    <button id="btnTransferirSaldo" onclick="transferirSaldoProximoMes()"
+      style="margin-top:8px;width:100%;padding:9px;background:#0a2a3a;border:1px solid #0ea5e9;color:#38bdf8;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;">
+      &#8594; Transferir como saldo inicial do próximo mês
+    </button>
   </div>
 
   <div class="section">
@@ -208,7 +212,9 @@
   <div class="section">
     <div class="section-header" onclick="toggleSection(this)">
       <h2>&#128179; Cartoes de Credito</h2>
-      <div style="display:flex;align-items:center;gap:8px;"><span class="total-badge" id="totalCartoesHeader">R$ 0,00</span><span class="arrow">&#9660;</span></div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button onclick="event.stopPropagation();abrirGerenciarCartoes()" style="background:#1e1e38;border:1px solid #3a3a5a;color:#a78bfa;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">&#9881; Gerenciar</button>
+        <span class="total-badge" id="totalCartoesHeader">R$ 0,00</span><span class="arrow">&#9660;</span></div>
     </div>
     <div class="section-body" id="bodyCartoes"><div id="listaCartoes"></div><div class="proj-acum-card"><div class="proj-acum-title" onclick="toggleProjAcum()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;"><span>&#128200; Projeção Acumulada — Todos os Cartões</span><span id="projAcumArrow" style="font-size:14px;">▶</span></div><div id="projAcumBody" style="display:none;"><div id="projAcumLista"></div></div></div></div>
   </div>
@@ -216,22 +222,39 @@
 
   <!-- INVESTIMENTO IDEAL -->
   <div class="invest-card" id="investCard">
-    <div class="invest-title">&#127807; Meta de Investimento do Mês</div>
-    <div id="investRows"></div>
-    <div class="invest-highlight">
-      <span>Sugestão de investimento (20% da renda)</span>
-      <strong id="investIdeal">R$ 0,00</strong>
+    <div class="invest-title" onclick="toggleInvest()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+      <span>&#127807; Meta de Investimento do Mês</span>
+      <span id="investArrow" style="font-size:13px;">&#9660;</span>
     </div>
-    <div style="margin-top:12px;background:#0a2a0a;border-radius:10px;padding:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <input type="checkbox" id="chkInvestCusto" style="width:18px;height:18px;accent-color:#10b981;cursor:pointer;flex-shrink:0;" onchange="onInvestChange()" />
-      <label for="chkInvestCusto" style="font-size:12px;color:#aaa;cursor:pointer;flex:1;">Incluir investimento no custo mensal</label>
-      <select id="selectPctInvest" style="background:#0f2a0f;border:1px solid #1a4a1a;color:#10b981;padding:6px 10px;border-radius:8px;font-size:13px;font-weight:700;" onchange="onInvestChange()">
-        <option value="10">10%</option>
-        <option value="20" selected>20%</option>
-        <option value="30">30%</option>
-      </select>
+    <div id="investBody">
+      <div id="investRows"></div>
+      <div class="invest-highlight">
+        <span id="investIdealLabel">Sugestão de investimento (20% da renda)</span>
+        <strong id="investIdeal">R$ 0,00</strong>
+      </div>
+      <div style="margin-top:12px;background:#0a2a0a;border-radius:10px;padding:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <label style="font-size:12px;color:#aaa;flex-shrink:0;">Meta de investimento:</label>
+        <input type="number" id="inputPctInvest" min="1" max="100" value="20"
+          style="width:60px;background:#0f2a0f;border:1px solid #1a4a1a;color:#10b981;padding:6px 10px;border-radius:8px;font-size:13px;font-weight:700;text-align:center;"
+          oninput="onInvestChange()" />
+        <label style="font-size:13px;color:#10b981;font-weight:700;">%</label>
+      </div>
     </div>
   </div>
+
+<!-- MODAL GERENCIAR CARTÕES -->
+<div class="modal-overlay" id="modalCartoes" style="display:none;" onclick="if(event.target===this)fecharGerenciarCartoes()">
+  <div class="modal-box" style="max-width:380px;">
+    <div class="modal-header"><span class="modal-title">&#9881; Gerenciar Cartões</span><button class="modal-close" onclick="fecharGerenciarCartoes()">&#10005;</button></div>
+    <div id="listaGerenciarCartoes" style="margin-bottom:12px;"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+      <input id="novoCartaoNome" type="text" placeholder="Nome do cartão" style="flex:1;min-width:100px;background:#1a1a2e;border:1px solid #3a3a5a;color:#fff;padding:8px;border-radius:8px;font-size:13px;"/>
+      <input id="novoCartaoCor" type="color" value="#7c3aed" style="width:40px;height:36px;border:none;border-radius:8px;cursor:pointer;background:none;"/>
+      <input id="novoCartaoVenc" type="number" placeholder="Venc." min="1" max="31" style="width:60px;background:#1a1a2e;border:1px solid #3a3a5a;color:#fff;padding:8px;border-radius:8px;font-size:13px;"/>
+    </div>
+    <button onclick="adicionarCartao()" style="width:100%;padding:10px;background:#7c3aed;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">+ Adicionar Cartão</button>
+  </div>
+</div>
 
 <div class="modal-overlay" id="modalOverlay">
   <div class="modal-box">
@@ -250,13 +273,15 @@ const FB_API_KEY = "AIzaSyATt31uIgZSXPkZ3oBN9A9sUYSzeClhbgM";
 const FB_DOC_URL = "https://firestore.googleapis.com/v1/projects/" + FB_PROJECT + "/databases/(default)/documents/financeiro/dados?key=" + FB_API_KEY;
 
 const MESES = ["Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-const CARTOES = [
+const CARTOES_DEFAULT = [
   { id: "nubank", nome: "Nubank", cor: "#820ad1", venc: 5 },
   { id: "inter",  nome: "Inter",  cor: "#ff6600", venc: 7 },
   { id: "xp",     nome: "XP",     cor: "#c0c0c0", venc: 5 },
   { id: "caixa",  nome: "Caixa",  cor: "#005ca9", venc: 11 },
   { id: "azul",   nome: "Azul",   cor: "#0057b8", venc: 8 },
 ];
+let CARTOES = JSON.parse(localStorage.getItem("cf_cartoes") || "null") || CARTOES_DEFAULT;
+function saveCartoes() { localStorage.setItem("cf_cartoes", JSON.stringify(CARTOES)); }
 const LOCAL_KEY = "cf_data_v4";
 
 let currentYear = 2026, currentMonth = 4;
@@ -810,12 +835,7 @@ function updateSummary(md) {
   let cartoes = 0;
   CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
 
-  // Investimento ideal opcional
-  const incluirInvest = document.getElementById("chkInvestCusto") && document.getElementById("chkInvestCusto").checked;
-  const pctInvest = incluirInvest ? (parseFloat(document.getElementById("selectPctInvest") && document.getElementById("selectPctInvest").value) || 20) : 0;
-  const valorInvest = entradas * (pctInvest / 100);
-
-  const saidas = fixas + cartoes + (incluirInvest ? valorInvest : 0);
+  const saidas = fixas + cartoes;
   const saldo = entradas - saidas;
 
   // Percentuais da renda
@@ -877,6 +897,92 @@ function saveModal() {
 
 
 // ── Contas Correntes Múltiplas ──
+
+
+
+// ── Toggle Investimento ──
+function toggleInvest() {
+  const body = document.getElementById("investBody");
+  const arrow = document.getElementById("investArrow");
+  if (!body) return;
+  const open = body.style.display !== "none";
+  body.style.display = open ? "none" : "";
+  arrow.textContent = open ? "▶" : "▼";
+}
+
+// ── Gerenciar Cartões ──
+function abrirGerenciarCartoes() {
+  renderGerenciarCartoes();
+  document.getElementById("modalCartoes").style.display = "flex";
+}
+function fecharGerenciarCartoes() {
+  document.getElementById("modalCartoes").style.display = "none";
+}
+function renderGerenciarCartoes() {
+  const lista = document.getElementById("listaGerenciarCartoes");
+  if (!lista) return;
+  lista.innerHTML = CARTOES.map((c,i) =>
+    '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+    '<span style="width:12px;height:12px;border-radius:50%;background:'+c.cor+';display:inline-block;flex-shrink:0;"></span>' +
+    '<span style="flex:1;font-size:13px;">'+c.nome+'</span>' +
+    '<span style="font-size:11px;color:#888;">Venc. dia '+c.venc+'</span>' +
+    '<button onclick="excluirCartao(''+c.id+'')" style="background:#2d0a0a;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;">&#128465;</button>' +
+    '</div>'
+  ).join("") || '<div style="color:#555;font-size:12px;">Nenhum cartão cadastrado</div>';
+}
+function adicionarCartao() {
+  const nome = (document.getElementById("novoCartaoNome").value || "").trim();
+  const cor = document.getElementById("novoCartaoCor").value || "#7c3aed";
+  const venc = parseInt(document.getElementById("novoCartaoVenc").value) || 1;
+  if (!nome) return alert("Digite o nome do cartão");
+  const id = "cartao_" + Date.now();
+  CARTOES.push({ id, nome, cor, venc });
+  saveCartoes();
+  document.getElementById("novoCartaoNome").value = "";
+  document.getElementById("novoCartaoVenc").value = "";
+  renderGerenciarCartoes();
+  renderAll();
+}
+function excluirCartao(id) {
+  if (!confirm("Excluir cartão? Os lançamentos deste cartão serão removidos do mês atual.")) return;
+  CARTOES = CARTOES.filter(c => c.id !== id);
+  saveCartoes();
+  // Remover dados do cartão no mês atual
+  const md = getMonthData(currentKey());
+  if (md.cartoes[id]) delete md.cartoes[id];
+  scheduleSave();
+  renderGerenciarCartoes();
+  renderAll();
+}
+
+// ── Transferir saldo para próximo mês ──
+function transferirSaldoProximoMes() {
+  const md = getMonthData(currentKey());
+  const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
+  const totalCC = (md.contasCorrente||[]).reduce((s,c)=>s+Number(c.valor||0),0);
+  const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
+  let cartoes = 0;
+  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
+  const saldo = entradas + totalCC - fixas - cartoes;
+
+  // Calcular chave do próximo mês
+  let nm = currentMonth + 1, ny = currentYear;
+  if (nm > 11) { nm = 0; ny++; }
+  const nextKey = ny + "-" + String(nm+1).padStart(2,"0");
+  const nextMd = getMonthData(nextKey);
+  if (!nextMd.contasCorrente) nextMd.contasCorrente = [];
+
+  // Verificar se já existe entrada de saldo transferido
+  const existing = nextMd.contasCorrente.find(c => c._transferido);
+  if (existing) {
+    existing.valor = saldo;
+  } else {
+    nextMd.contasCorrente.push({ id: Date.now(), nome: "Saldo anterior", valor: saldo, _transferido: true });
+  }
+  scheduleSave();
+  alert("Saldo de " + fmt(saldo) + " transferido para " + MESES[nm] + "/" + ny + "!");
+}
+
 // ── Toggle Projeção Acumulada ──
 function toggleProjAcum() {
   const body = document.getElementById("projAcumBody");
@@ -946,14 +1052,7 @@ function updateCCSaldo(md) {
   let cartoes = 0;
   CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
 
-  // Descontar investimento se marcado
-  const chk = document.getElementById("chkInvestCusto");
-  const sel = document.getElementById("selectPctInvest");
-  const incluirInvest = chk && chk.checked;
-  const pctInvest = incluirInvest ? (parseFloat(sel && sel.value) || 20) : 0;
-  const valorInvest = entradas * (pctInvest / 100);
-
-  const saldo = entradas + totalCC - fixas - cartoes - (incluirInvest ? valorInvest : 0);
+  const saldo = entradas + totalCC - fixas - cartoes;
   const el = document.getElementById("ccSaldoVal");
   const box = document.getElementById("ccSaldoBox");
   if (!el || !box) return;
@@ -982,7 +1081,7 @@ function renderInvest(md) {
   CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
   const saidas = fixas + cartoes;
   const saldo = entradas - saidas;
-  const pctSel = parseFloat(document.getElementById("selectPctInvest") ? document.getElementById("selectPctInvest").value : 20) || 20;
+  const pctSel = parseFloat(document.getElementById("inputPctInvest") ? document.getElementById("inputPctInvest").value : 20) || 20;
   const idealSel = entradas * (pctSel / 100);
   const ideal20 = entradas * 0.20;
   const ideal10 = entradas * 0.10;
@@ -1000,6 +1099,8 @@ function renderInvest(md) {
   document.getElementById("investRows").innerHTML = rows.map(r =>
     '<div class="invest-row"><span class="invest-label">'+r.label+'</span><span class="invest-value" style="color:'+r.color+'">'+r.value+'</span></div>'
   ).join("");
+  const elLabel = document.getElementById("investIdealLabel");
+  if (elLabel) elLabel.textContent = "Sugestão de investimento (" + pctSel + "% da renda)";
   const elIdeal = document.getElementById("investIdeal");
   if (elIdeal) {
     elIdeal.textContent = fmt(idealSel);
