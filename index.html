@@ -153,9 +153,11 @@
   
   <!-- CONTA CORRENTE -->
   <div class="cc-card">
-    <div class="cc-title">&#127974; Contas Correntes do Mês</div>
+    <div class="cc-title" style="display:flex;justify-content:space-between;align-items:center;">
+      <span>&#127974; Contas Correntes</span>
+      <button onclick="addCC()" style="background:#0a2a40;border:1px solid #0ea5e9;color:#38bdf8;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;">+ Adicionar</button>
+    </div>
     <div id="listaCC"></div>
-    <button class="btn-add" style="margin-top:10px;" onclick="addCC()">+ Adicionar Conta Corrente</button>
     <div class="cc-saldo zer" id="ccSaldoBox" style="margin-top:12px;">
       <span>&#128197; Saldo inicial do próximo mês</span>
       <strong id="ccSaldoVal" style="color:#f59e0b">R$ 0,00</strong>
@@ -218,10 +220,17 @@
     <div class="section-header" onclick="toggleSection(this)">
       <h2>&#128179; Cartoes de Credito</h2>
       <div style="display:flex;align-items:center;gap:8px;">
-        <button onclick="event.stopPropagation();abrirGerenciarCartoes()" style="background:#1e1e38;border:1px solid #3a3a5a;color:#a78bfa;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">&#9881; Gerenciar</button>
-        <span class="total-badge" id="totalCartoesHeader">R$ 0,00</span><span class="arrow">&#9660;</span></div>
+        <span class="total-badge" id="totalCartoesHeader">R$ 0,00</span><span class="arrow">&#9660;</span>
+      </div>
     </div>
-    <div class="section-body" id="bodyCartoes"><div id="listaCartoes"></div><div class="proj-acum-card"><div class="proj-acum-title" onclick="toggleProjAcum()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;"><span>&#128200; Projeção Acumulada — Todos os Cartões</span><span id="projAcumArrow" style="font-size:14px;">▶</span></div><div id="projAcumBody" style="display:none;"><div id="projAcumLista"></div></div></div></div>
+    <div class="section-body" id="bodyCartoes">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+    <button onclick="event.stopPropagation();abrirGerenciarCartoes()" title="Gerenciar Cartões"
+      style="background:#1a1a2e;border:1px solid #3a3a5a;color:#a78bfa;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;">
+      &#9881; <span style="font-size:12px;">Gerenciar</span>
+    </button>
+  </div>
+  <div id="listaCartoes"></div><div class="proj-acum-card"><div class="proj-acum-title" onclick="toggleProjAcum()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;"><span>&#128200; Projeção Acumulada — Todos os Cartões</span><span id="projAcumArrow" style="font-size:14px;">▶</span></div><div id="projAcumBody" style="display:none;"><div id="projAcumLista"></div></div></div></div>
   </div>
 </div>
 
@@ -248,7 +257,7 @@
   </div>
 
 <!-- MODAL GERENCIAR CARTÕES -->
-<div class="modal-overlay" id="modalCartoes" style="display:none;" onclick="if(event.target===this)fecharGerenciarCartoes()">
+<div class="modal-overlay" id="modalCartoes" onclick="if(event.target===this)fecharGerenciarCartoes()">
   <div class="modal-box" style="max-width:380px;">
     <div class="modal-header"><span class="modal-title">&#9881; Gerenciar Cartões</span><button class="modal-close" onclick="fecharGerenciarCartoes()">&#10005;</button></div>
     <div id="listaGerenciarCartoes" style="margin-bottom:12px;"></div>
@@ -918,10 +927,10 @@ function toggleInvest() {
 // ── Gerenciar Cartões ──
 function abrirGerenciarCartoes() {
   renderGerenciarCartoes();
-  document.getElementById("modalCartoes").style.display = "flex";
+  document.getElementById("modalCartoes").classList.add("open");
 }
 function fecharGerenciarCartoes() {
-  document.getElementById("modalCartoes").style.display = "none";
+  document.getElementById("modalCartoes").classList.remove("open");
 }
 function renderGerenciarCartoes() {
   const lista = document.getElementById("listaGerenciarCartoes");
@@ -1014,15 +1023,15 @@ function renderCC(md) {
   lista.innerHTML = ccs.length === 0
     ? '<div style="color:#555;font-size:12px;padding:6px 0;">Nenhuma conta adicionada</div>'
     : ccs.map((cc, i) => `
-      <div class="cc-row" style="margin-bottom:8px;" id="ccRow${cc.id}">
-        <input class="cc-input" style="flex:1.5;padding:8px 10px;font-size:13px;" type="text" placeholder="Nome da conta" value="${cc.nome||''}"
+      <div class="cc-row" style="margin-bottom:6px;" id="ccRow${cc.id}">
+        <input class="cc-input" style="flex:1.5;padding:6px 8px;font-size:12px;" type="text" placeholder="Nome" value="${cc.nome||''}"
           oninput="updateCCField(${cc.id},'nome',this.value)" />
         <div class="cc-input-wrap" style="flex:1;">
           <span>R$</span>
           <input class="cc-input" type="number" inputmode="decimal" step="any" placeholder="0,00" value="${cc.valor||''}"
             oninput="updateCCField(${cc.id},'valor',this.value)" />
         </div>
-        <button onclick="removeCC(${cc.id})" style="background:#2d0a0a;border:1px solid #ef4444;color:#ef4444;border-radius:8px;padding:6px 10px;font-size:16px;cursor:pointer;">✕</button>
+        <button onclick="removeCC(${cc.id})" style="background:#2d0a0a;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:4px 8px;font-size:13px;cursor:pointer;flex-shrink:0;">✕</button>
       </div>`).join("");
   updateCCSaldo(md);
 }
@@ -1198,7 +1207,7 @@ function onInvestChange() {
 
 function toggleSection(header) {
   const body = header.nextElementSibling;
-  body.classList.toggle("open", !body.classList.contains("open"));
+  if (body) body.classList.toggle("open", !body.classList.contains("open"));
 }
 function showForm(id) { const el=document.getElementById(id); if(el) el.style.display="block"; }
 function hideForm(id) { const el=document.getElementById(id); if(el) el.style.display="none"; }
