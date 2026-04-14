@@ -875,6 +875,20 @@ function saveModal() {
 
 
 // ── Contas Correntes Múltiplas ──
+// ── Toggle Projeção Acumulada ──
+function toggleProjAcum() {
+  const body = document.getElementById("projAcumBody");
+  const arrow = document.getElementById("projAcumArrow");
+  if (!body) return;
+  const open = body.style.display !== "none";
+  body.style.display = open ? "none" : "";
+  arrow.textContent = open ? "▶" : "▼";
+  if (!open) {
+    const md = getMonthData(currentKey());
+    renderProjAcum(md);
+  }
+}
+
 function renderCC(md) {
   const lista = document.getElementById("listaCC");
   if (!lista) return;
