@@ -130,6 +130,45 @@
   .proj-acum-val { color:#f59e0b; font-weight:700; }
   .proj-acum-current { background:#1e1e38; border-radius:6px; padding:2px 6px; }
 
+
+  /* ── Débito / PIX ── */
+  .debito-section { margin-top:10px; border-top:1px solid #1e4a6e; padding-top:8px; }
+  .debito-toggle { display:flex; justify-content:space-between; align-items:center; cursor:pointer; padding:4px 0; }
+  .debito-toggle span { font-size:12px; color:#38bdf8; font-weight:700; }
+  .debito-toggle .dbt-arrow { font-size:11px; color:#38bdf8; }
+  .debito-body { display:none; margin-top:8px; }
+  .debito-item { display:flex; align-items:center; gap:8px; padding:7px 8px; background:#0a1f30; border-radius:8px; margin-bottom:6px; border:1px solid #1e3a50; }
+  .debito-item .dbt-info { flex:1; min-width:0; }
+  .debito-item .dbt-name { font-size:12px; font-weight:600; color:#e0e0e0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .debito-item .dbt-sub { font-size:10px; color:#888; margin-top:1px; }
+  .debito-item .dbt-val { font-size:13px; font-weight:700; color:#ef4444; white-space:nowrap; }
+  .debito-add-form { background:#0a1f30; border-radius:8px; padding:10px; margin-top:8px; border:1px solid #1e3a50; }
+  .debito-add-form h5 { font-size:11px; color:#38bdf8; margin-bottom:8px; font-weight:700; }
+
+  /* ── Investimentos ── */
+  .aporte-card { background: linear-gradient(135deg, #0d1a2e, #0a1525); border-radius: 16px; padding: 16px; margin-bottom: 16px; border: 1px solid #1e3a6e; }
+  .aporte-title { font-size:13px; color:#60a5fa; font-weight:700; margin-bottom:0; display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+  .aporte-body { margin-top:12px; }
+  .aporte-item { display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; margin-bottom:6px; }
+  .aporte-item.fixa { background:#0d2137; border:1px solid #1e4a6e; }
+  .aporte-item.variavel { background:#1a1a00; border:1px solid #3a3a00; }
+  .aporte-item .ap-info { flex:1; min-width:0; }
+  .aporte-item .ap-name { font-size:13px; font-weight:600; color:#e0e0e0; }
+  .aporte-item .ap-sub { font-size:10px; color:#888; margin-top:2px; }
+  .aporte-item .ap-val { font-size:14px; font-weight:700; white-space:nowrap; }
+  .aporte-item.fixa .ap-val { color:#60a5fa; }
+  .aporte-item.variavel .ap-val { color:#f59e0b; }
+  .aporte-cat-block { background:#0a1525; border-radius:10px; padding:10px; margin-bottom:8px; border:1px solid #1e3a6e; }
+  .aporte-cat-title { font-size:11px; color:#888; font-weight:700; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px; }
+  .aporte-cat-total { font-size:16px; font-weight:800; }
+  .aporte-cat-total.fixa { color:#60a5fa; }
+  .aporte-cat-total.variavel { color:#f59e0b; }
+  .aporte-grand-total { background:#0a2a0a; border-radius:10px; padding:10px; text-align:center; margin-top:8px; border:1px solid #1a4a1a; }
+  .aporte-grand-total span { font-size:11px; color:#aaa; display:block; }
+  .aporte-grand-total strong { font-size:20px; font-weight:800; color:#10b981; }
+  .fixa-badge { background:#0d2137; color:#60a5fa; font-size:10px; padding:2px 6px; border-radius:10px; font-weight:700; }
+  .variavel-badge { background:#1a1a00; color:#f59e0b; font-size:10px; padding:2px 6px; border-radius:10px; font-weight:700; }
+
 </style>
 </head>
 <body>
@@ -159,18 +198,10 @@
     </div>
     <div id="listaCC"></div>
     <div class="cc-saldo zer" id="ccSaldoBox" style="margin-top:12px;">
-      <span>&#128197; Saldo inicial do próximo mês</span>
+      <span>&#128197; Saldo líquido do mês (passa automaticamente para o próximo)</span>
       <strong id="ccSaldoVal" style="color:#f59e0b">R$ 0,00</strong>
     </div>
-    <div style="margin-top:8px;display:flex;gap:6px;align-items:center;">
-      <input type="number" id="inputTransferirValor" placeholder="Valor a transferir"
-        style="flex:1;background:#0a1a2a;border:1px solid #0ea5e9;color:#38bdf8;padding:8px;border-radius:8px;font-size:12px;min-width:0;"
-        step="0.01" />
-      <button onclick="transferirSaldoProximoMes()"
-        style="padding:9px 12px;background:#0a2a3a;border:1px solid #0ea5e9;color:#38bdf8;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
-        &#8594; Transferir
-      </button>
-    </div>
+    <div id="listaDebitoCC"></div>
   </div>
 
   <div class="section">
@@ -252,6 +283,39 @@
           style="width:60px;background:#0f2a0f;border:1px solid #1a4a1a;color:#10b981;padding:6px 10px;border-radius:8px;font-size:13px;font-weight:700;text-align:center;"
           oninput="onInvestChange()" />
         <label style="font-size:13px;color:#10b981;font-weight:700;">%</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- INVESTIMENTOS / APORTES -->
+  <div class="aporte-card" id="aporteCard">
+    <div class="aporte-title" onclick="toggleAportes()">
+      <span>&#128200; Investimentos — Carteira</span>
+      <span id="aporteArrow" style="font-size:13px;">&#9654;</span>
+    </div>
+    <div id="aporteBody" style="display:none;">
+      <div id="aporteResumo" style="margin-top:10px;"></div>
+      <div id="aporteListaMes" style="margin-top:10px;"></div>
+      <button class="btn-add-small" onclick="showForm('formAporte')" style="margin-top:8px;">+ Registrar aporte</button>
+      <div class="add-form" id="formAporte" style="display:none;margin-top:8px;">
+        <h4 style="color:#60a5fa;">Novo Aporte</h4>
+        <div class="form-row">
+          <div class="form-group"><label>Descrição</label><input type="text" id="aporteNome" placeholder="Ex: Tesouro Selic"/></div>
+          <div class="form-group" style="max-width:120px;"><label>Valor (R$)</label><input type="number" id="aporteValor" placeholder="0,00" inputmode="decimal" step="any"/></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group" style="max-width:90px;"><label>Dia do aporte</label><input type="number" id="aporteDia" placeholder="Ex: 5" min="1" max="31"/></div>
+          <div class="form-group"><label>Tipo</label>
+            <select id="aporteTipo">
+              <option value="fixa">Renda Fixa (CDB, Tesouro, Caixinha...)</option>
+              <option value="variavel">Renda Variável (Ações, FIIs, ETFs...)</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn-add" style="flex:1;background:#1e3a6e;" onclick="addAporte()">Adicionar</button>
+          <button class="btn-hide-form" onclick="hideForm('formAporte')">&#8593; Fechar</button>
+        </div>
       </div>
     </div>
   </div>
@@ -565,6 +629,9 @@ function renderAll() {
   renderCC(md);
   renderInvest(md);
   renderProjAcum();
+  // Renderizar aportes se a seção estiver aberta
+  const aporteBody = document.getElementById("aporteBody");
+  if (aporteBody && aporteBody.style.display !== "none" && aporteBody.style.display !== "") renderAportes();
 }
 
 function renderEntradas(md) {
@@ -911,16 +978,45 @@ function saveModal() {
 
 
 // ── Contas Correntes Múltiplas ──
+// O saldo líquido do mês é propagado automaticamente para o próximo mês
+// como uma entrada especial "_saldoAnterior" em cada conta corrente.
+
+function propagarSaldoCC() {
+  // Calcula saldo líquido do mês atual e injeta no próximo mês
+  const key = currentKey();
+  const md = getMonthData(key);
+  const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
+  const totalCC = (md.contasCorrente||[]).reduce((s,c)=>s+Number(c.valor||0),0);
+  const totalDebito = (md.contasCorrente||[]).reduce((s,c)=>s+((c.debitos||[]).reduce((sd,d)=>sd+Number(d.valor||0),0)),0);
+  const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
+  let cartoes = 0;
+  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
+  const saldoLiquido = entradas + totalCC - totalDebito - fixas - cartoes;
+
+  let nm = currentMonth + 1, ny = currentYear;
+  if (nm > 11) { nm = 0; ny++; }
+  const nextKey = ny + "-" + String(nm+1).padStart(2,"0");
+  const nextMd = getMonthData(nextKey);
+  if (!nextMd.contasCorrente) nextMd.contasCorrente = [];
+
+  // Atualiza ou cria entrada de saldo anterior
+  const existing = nextMd.contasCorrente.find(c => c._saldoAnterior);
+  if (existing) {
+    existing.valor = saldoLiquido;
+  } else {
+    nextMd.contasCorrente.push({ id: "saldo_anterior_" + nextKey, nome: "Saldo anterior", valor: saldoLiquido, _saldoAnterior: true });
+  }
+}
 
 
 
-// ── Toggle Investimento ──
+// ── Toggle Investimento (começa minimizado) ──
 function toggleInvest() {
   const body = document.getElementById("investBody");
   const arrow = document.getElementById("investArrow");
   if (!body) return;
-  const open = body.style.display !== "none";
-  body.style.display = open ? "none" : "";
+  const open = body.style.display !== "none" && body.style.display !== "";
+  body.style.display = open ? "none" : "block";
   arrow.textContent = open ? "▶" : "▼";
 }
 
@@ -969,38 +1065,9 @@ function excluirCartao(id) {
   renderAll();
 }
 
-// ── Transferir saldo para próximo mês ──
-function transferirSaldoProximoMes() {
-  const inputEl = document.getElementById("inputTransferirValor");
-  const valorInput = inputEl ? parseFloat(inputEl.value) : NaN;
-
-  // Se o usuário não digitou nada, usar o saldo calculado
-  const md = getMonthData(currentKey());
-  const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
-  const totalCC = (md.contasCorrente||[]).reduce((s,c)=>s+Number(c.valor||0),0);
-  const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
-  let cartoes = 0;
-  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
-  const saldoCalc = entradas + totalCC - fixas - cartoes;
-  const valorFinal = (!isNaN(valorInput) && inputEl && inputEl.value !== "") ? valorInput : saldoCalc;
-
-  // Calcular chave do próximo mês
-  let nm = currentMonth + 1, ny = currentYear;
-  if (nm > 11) { nm = 0; ny++; }
-  const nextKey = ny + "-" + String(nm+1).padStart(2,"0");
-  const nextMd = getMonthData(nextKey);
-  if (!nextMd.contasCorrente) nextMd.contasCorrente = [];
-
-  // Verificar se já existe entrada de saldo transferido
-  const existing = nextMd.contasCorrente.find(c => c._transferido);
-  if (existing) {
-    existing.valor = valorFinal;
-  } else {
-    nextMd.contasCorrente.push({ id: Date.now(), nome: "Saldo anterior", valor: valorFinal, _transferido: true });
-  }
-  scheduleSave();
-  alert("Transferido " + fmt(valorFinal) + " para " + MESES[nm] + "/" + ny + "!");
-}
+// ── Saldo automático para próximo mês (sem botão) ──
+// Função mantida para compatibilidade, mas não é mais chamada manualmente.
+function transferirSaldoProximoMes() { propagarSaldoCC(); scheduleSave(); }
 
 // ── Toggle Projeção Acumulada ──
 function toggleProjAcum() {
@@ -1019,21 +1086,145 @@ function toggleProjAcum() {
 function renderCC(md) {
   const lista = document.getElementById("listaCC");
   if (!lista) return;
-  const ccs = md.contasCorrente || [];
+  const ccs = (md.contasCorrente || []).filter(c => !c._saldoAnterior);
+  const saldoAnt = (md.contasCorrente || []).find(c => c._saldoAnterior);
+
   lista.innerHTML = ccs.length === 0
     ? '<div style="color:#555;font-size:12px;padding:6px 0;">Nenhuma conta adicionada</div>'
-    : ccs.map((cc, i) => `
-      <div class="cc-row" style="margin-bottom:6px;" id="ccRow${cc.id}">
-        <input class="cc-input" style="flex:1.5;padding:6px 8px;font-size:12px;" type="text" placeholder="Nome" value="${cc.nome||''}"
-          oninput="updateCCField(${cc.id},'nome',this.value)" />
-        <div class="cc-input-wrap" style="flex:1;">
-          <span>R$</span>
-          <input class="cc-input" type="number" inputmode="decimal" step="any" placeholder="0,00" value="${cc.valor||''}"
-            oninput="updateCCField(${cc.id},'valor',this.value)" />
-        </div>
-        <button onclick="removeCC(${cc.id})" style="background:#2d0a0a;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:4px 8px;font-size:13px;cursor:pointer;flex-shrink:0;">✕</button>
-      </div>`).join("");
+    : ccs.map((cc) => {
+        const totalDebito = (cc.debitos||[]).reduce((s,d)=>s+Number(d.valor||0),0);
+        const saldoCC = Number(cc.valor||0) - totalDebito;
+        const saldoColor = saldoCC >= 0 ? '#10b981' : '#ef4444';
+        return `<div style="background:#0a1f30;border-radius:10px;padding:10px;margin-bottom:8px;border:1px solid #1e3a50;">
+          <div class="cc-row" style="margin-bottom:6px;" id="ccRow${cc.id}">
+            <input class="cc-input" style="flex:1.5;padding:6px 8px;font-size:12px;background:#0f2a40;" type="text" placeholder="Nome" value="${cc.nome||''}"
+              oninput="updateCCField('${cc.id}','nome',this.value)" />
+            <div class="cc-input-wrap" style="flex:1;">
+              <span>R$</span>
+              <input class="cc-input" type="number" inputmode="decimal" step="any" placeholder="0,00" value="${cc.valor||''}"
+                oninput="updateCCField('${cc.id}','valor',this.value)" />
+            </div>
+            <button onclick="removeCC('${cc.id}')" style="background:#2d0a0a;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:4px 8px;font-size:13px;cursor:pointer;flex-shrink:0;">✕</button>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#888;padding:2px 4px;">
+            <span>Saldo disponível: <strong style="color:${saldoColor};">${fmt(saldoCC)}</strong></span>
+            ${totalDebito > 0 ? `<span style="color:#ef4444;">Débitos: ${fmt(totalDebito)}</span>` : ''}
+          </div>
+          <div class="debito-section">
+            <div class="debito-toggle" onclick="toggleDebitoCC('${cc.id}')">
+              <span>&#128184; Compras no Débito / PIX</span>
+              <span class="dbt-arrow" id="dbt-arrow-${cc.id}">&#9654;</span>
+            </div>
+            <div class="debito-body" id="debito-body-${cc.id}">
+              ${renderDebitoBody(cc)}
+            </div>
+          </div>
+        </div>`;
+      }).join("");
+
+  // Mostrar saldo anterior se existir
+  const listaDebito = document.getElementById("listaDebitoCC");
+  if (listaDebito) {
+    if (saldoAnt) {
+      listaDebito.innerHTML = `<div style="font-size:11px;color:#60a5fa;padding:4px 0;text-align:center;">
+        &#128197; Saldo recebido do mês anterior: <strong style="color:#60a5fa;">${fmt(saldoAnt.valor)}</strong>
+      </div>`;
+    } else {
+      listaDebito.innerHTML = '';
+    }
+  }
+
   updateCCSaldo(md);
+}
+
+function renderDebitoBody(cc) {
+  const debitos = cc.debitos || [];
+  const listaHtml = debitos.length === 0
+    ? '<div class="empty-msg" style="font-size:11px;">Nenhum débito/PIX registrado</div>'
+    : debitos.map((d, i) => `
+        <div class="debito-item">
+          <div class="dbt-info">
+            <div class="dbt-name">${d.nome}</div>
+            ${d.dia ? `<div class="dbt-sub">Dia ${String(d.dia).padStart(2,'0')}/${String(currentMonth+1).padStart(2,'0')}</div>` : ''}
+          </div>
+          <span class="dbt-val">- ${fmt(d.valor)}</span>
+          <button class="btn-icon" onclick="removeDebito('${cc.id}',${i})">&#128465;&#65039;</button>
+        </div>`).join("");
+
+  return listaHtml + `
+    <button class="btn-add-small" style="margin-top:6px;font-size:11px;" onclick="showDebitoForm('${cc.id}')">+ Adicionar débito/PIX</button>
+    <div class="debito-add-form" id="debito-form-${cc.id}" style="display:none;">
+      <h5>Novo Débito / PIX</h5>
+      <div class="form-row">
+        <div class="form-group"><label>Descrição</label><input type="text" id="dbt-nome-${cc.id}" placeholder="Ex: Mercado, PIX..."/></div>
+        <div class="form-group" style="max-width:110px;"><label>Valor (R$)</label><input type="number" id="dbt-valor-${cc.id}" placeholder="0,00" inputmode="decimal" step="any"/></div>
+        <div class="form-group" style="max-width:70px;"><label>Dia</label><input type="number" id="dbt-dia-${cc.id}" placeholder="Ex: 10" min="1" max="31"/></div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn-add" style="flex:1;font-size:12px;padding:8px;" onclick="addDebito('${cc.id}')">Adicionar</button>
+        <button class="btn-hide-form" style="font-size:12px;" onclick="hideDebitoForm('${cc.id}')">&#8593; Fechar</button>
+      </div>
+    </div>`;
+}
+
+function toggleDebitoCC(ccId) {
+  const body = document.getElementById("debito-body-" + ccId);
+  const arrow = document.getElementById("dbt-arrow-" + ccId);
+  if (!body) return;
+  const open = body.style.display !== "none" && body.style.display !== "";
+  body.style.display = open ? "none" : "block";
+  if (arrow) arrow.textContent = open ? "▶" : "▼";
+}
+
+function showDebitoForm(ccId) {
+  const f = document.getElementById("debito-form-" + ccId);
+  if (f) f.style.display = "block";
+}
+function hideDebitoForm(ccId) {
+  const f = document.getElementById("debito-form-" + ccId);
+  if (f) f.style.display = "none";
+}
+
+function addDebito(ccId) {
+  const nome = (document.getElementById("dbt-nome-" + ccId).value || "").trim();
+  const valor = parseFloat(document.getElementById("dbt-valor-" + ccId).value);
+  const dia = parseInt(document.getElementById("dbt-dia-" + ccId).value) || null;
+  if (!nome || isNaN(valor) || valor <= 0) return alert("Preencha descrição e valor");
+  const md = getMonthData(currentKey());
+  const cc = (md.contasCorrente||[]).find(c => c.id == ccId);
+  if (!cc) return;
+  if (!cc.debitos) cc.debitos = [];
+  cc.debitos.push({ nome, valor, dia });
+  document.getElementById("dbt-nome-" + ccId).value = "";
+  document.getElementById("dbt-valor-" + ccId).value = "";
+  document.getElementById("dbt-dia-" + ccId).value = "";
+  scheduleSave();
+  renderCC(md);
+  updateSummary(md);
+  // Reabrir seção débito
+  setTimeout(() => {
+    const body = document.getElementById("debito-body-" + ccId);
+    if (body) body.style.display = "block";
+    const arrow = document.getElementById("dbt-arrow-" + ccId);
+    if (arrow) arrow.textContent = "▼";
+  }, 50);
+}
+
+function removeDebito(ccId, idx) {
+  if (!confirm("Remover débito?")) return;
+  const md = getMonthData(currentKey());
+  const cc = (md.contasCorrente||[]).find(c => c.id == ccId);
+  if (!cc || !cc.debitos) return;
+  cc.debitos.splice(idx, 1);
+  scheduleSave();
+  renderCC(md);
+  updateSummary(md);
+  setTimeout(() => {
+    const body = document.getElementById("debito-body-" + ccId);
+    if (body) body.style.display = "block";
+    const arrow = document.getElementById("dbt-arrow-" + ccId);
+    if (arrow) arrow.textContent = "▼";
+  }, 50);
 }
 
 function addCC() {
@@ -1046,7 +1237,7 @@ function addCC() {
 
 function removeCC(id) {
   const md = getMonthData(currentKey());
-  md.contasCorrente = (md.contasCorrente||[]).filter(c => c.id !== id);
+  md.contasCorrente = (md.contasCorrente||[]).filter(c => String(c.id) !== String(id));
   scheduleSave();
   renderCC(md);
   updateSummary(md);
@@ -1055,7 +1246,7 @@ function removeCC(id) {
 
 function updateCCField(id, field, val) {
   const md = getMonthData(currentKey());
-  const cc = (md.contasCorrente||[]).find(c => c.id === id);
+  const cc = (md.contasCorrente||[]).find(c => String(c.id) === String(id));
   if (!cc) return;
   cc[field] = field === "valor" ? (parseFloat(val)||0) : val;
   scheduleSave();
@@ -1066,21 +1257,22 @@ function updateCCField(id, field, val) {
 
 function updateCCSaldo(md) {
   const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
-  const totalCC = (md.contasCorrente||[]).reduce((s,c)=>s+Number(c.valor||0),0);
+  const totalCC = (md.contasCorrente||[]).filter(c=>!c._saldoAnterior).reduce((s,c)=>s+Number(c.valor||0),0);
+  const saldoAnt = ((md.contasCorrente||[]).find(c=>c._saldoAnterior)||{}).valor || 0;
+  const totalDebito = (md.contasCorrente||[]).filter(c=>!c._saldoAnterior).reduce((s,c)=>s+((c.debitos||[]).reduce((sd,d)=>sd+Number(d.valor||0),0)),0);
   const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
   let cartoes = 0;
   CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
 
-  const saldo = entradas + totalCC - fixas - cartoes;
+  const saldo = entradas + totalCC + saldoAnt - totalDebito - fixas - cartoes;
   const el = document.getElementById("ccSaldoVal");
   const box = document.getElementById("ccSaldoBox");
   if (!el || !box) return;
   el.textContent = fmt(saldo);
-  // Preencher input de transferência com saldo calculado (se vazio)
-  const inputT = document.getElementById("inputTransferirValor");
-  if (inputT && inputT.value === "") inputT.placeholder = "Sugerido: " + fmt(saldo);
   box.className = "cc-saldo " + (saldo>0?"pos":saldo<0?"neg":"zer");
   el.style.color = saldo>0?"#10b981":saldo<0?"#ef4444":"#f59e0b";
+  // Propagar automaticamente para o próximo mês
+  propagarSaldoCC();
 }
 
 function onCCChange() {
@@ -1211,6 +1403,115 @@ function toggleSection(header) {
 }
 function showForm(id) { const el=document.getElementById(id); if(el) el.style.display="block"; }
 function hideForm(id) { const el=document.getElementById(id); if(el) el.style.display="none"; }
+
+// ── Aportes / Investimentos ──
+function getAportes() {
+  // Retorna todos os aportes de todos os meses até o mês atual (acumulado)
+  const curKey = currentKey();
+  const [cy, cm] = curKey.split("-").map(Number);
+  let todos = [];
+  Object.keys(data).forEach(key => {
+    const [ky, km] = key.split("-").map(Number);
+    if (ky < cy || (ky === cy && km <= cm)) {
+      const md = data[key];
+      if (md && Array.isArray(md.aportes)) {
+        md.aportes.forEach(a => todos.push({ ...a, _mesKey: key }));
+      }
+    }
+  });
+  return todos;
+}
+
+function toggleAportes() {
+  const body = document.getElementById("aporteBody");
+  const arrow = document.getElementById("aporteArrow");
+  if (!body) return;
+  const open = body.style.display !== "none" && body.style.display !== "";
+  body.style.display = open ? "none" : "block";
+  arrow.textContent = open ? "▶" : "▼";
+  if (!open) renderAportes();
+}
+
+function addAporte() {
+  const nome = (document.getElementById("aporteNome").value || "").trim();
+  const valor = parseFloat(document.getElementById("aporteValor").value);
+  const dia = parseInt(document.getElementById("aporteDia").value) || null;
+  const tipo = document.getElementById("aporteTipo").value;
+  if (!nome || isNaN(valor) || valor <= 0) return alert("Preencha descrição e valor");
+  const md = getMonthData(currentKey());
+  if (!md.aportes) md.aportes = [];
+  md.aportes.push({ id: Date.now(), nome, valor, dia, tipo });
+  document.getElementById("aporteNome").value = "";
+  document.getElementById("aporteValor").value = "";
+  document.getElementById("aporteDia").value = "";
+  hideForm("formAporte");
+  scheduleSave();
+  renderAportes();
+}
+
+function removeAporte(id) {
+  if (!confirm("Remover aporte?")) return;
+  const md = getMonthData(currentKey());
+  md.aportes = (md.aportes||[]).filter(a => a.id !== id);
+  scheduleSave();
+  renderAportes();
+}
+
+function renderAportes() {
+  const resumoEl = document.getElementById("aporteResumo");
+  const listaMesEl = document.getElementById("aporteListaMes");
+  if (!resumoEl || !listaMesEl) return;
+
+  // Acumulado total de todos os meses até o atual
+  const todos = getAportes();
+  let totalFixa = 0, totalVariavel = 0;
+  todos.forEach(a => {
+    if (a.tipo === "fixa") totalFixa += Number(a.valor||0);
+    else totalVariavel += Number(a.valor||0);
+  });
+  const totalGeral = totalFixa + totalVariavel;
+
+  resumoEl.innerHTML = `
+    <div style="font-size:11px;color:#888;margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">&#128200; Carteira Acumulada</div>
+    <div class="aporte-cat-block">
+      <div class="aporte-cat-title">&#128274; Renda Fixa</div>
+      <div class="aporte-cat-total fixa">${fmt(totalFixa)}</div>
+    </div>
+    <div class="aporte-cat-block">
+      <div class="aporte-cat-title">&#128200; Renda Variável</div>
+      <div class="aporte-cat-total variavel">${fmt(totalVariavel)}</div>
+    </div>
+    <div class="aporte-grand-total">
+      <span>Total investido (acumulado)</span>
+      <strong>${fmt(totalGeral)}</strong>
+    </div>`;
+
+  // Aportes do mês atual
+  const md = getMonthData(currentKey());
+  const aportesMes = md.aportes || [];
+  if (aportesMes.length === 0) {
+    listaMesEl.innerHTML = '<div class="empty-msg" style="font-size:12px;">Nenhum aporte registrado neste mês</div>';
+    return;
+  }
+  listaMesEl.innerHTML = `<div style="font-size:11px;color:#888;margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">Aportes de ${MESES[currentMonth]} ${currentYear}</div>` +
+    aportesMes.map(a => `
+      <div class="aporte-item ${a.tipo}">
+        <div class="ap-info">
+          <div class="ap-name">${a.nome} <span class="${a.tipo === 'fixa' ? 'fixa-badge' : 'variavel-badge'}">${a.tipo === 'fixa' ? 'Renda Fixa' : 'Renda Variável'}</span></div>
+          ${a.dia ? `<div class="ap-sub">Dia ${String(a.dia).padStart(2,'0')}/${String(currentMonth+1).padStart(2,'0')}</div>` : ''}
+        </div>
+        <span class="ap-val">${fmt(a.valor)}</span>
+        <button class="btn-icon" onclick="removeAporte(${a.id})">&#128465;&#65039;</button>
+      </div>`).join("");
+}
+
+// Inicializar investBody como minimizado
+document.addEventListener("DOMContentLoaded", function() {
+  const investBody = document.getElementById("investBody");
+  if (investBody) investBody.style.display = "none";
+  const investArrow = document.getElementById("investArrow");
+  if (investArrow) investArrow.textContent = "▶";
+});
 </script>
 </body>
 </html>
