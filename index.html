@@ -197,11 +197,6 @@
       <button onclick="addCC()" style="background:#0a2a40;border:1px solid #0ea5e9;color:#38bdf8;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;">+ Adicionar</button>
     </div>
     <div id="listaCC"></div>
-    <div class="cc-saldo zer" id="ccSaldoBox" style="margin-top:12px;">
-      <span>&#128197; Saldo líquido do mês (passa automaticamente para o próximo)</span>
-      <strong id="ccSaldoVal" style="color:#f59e0b">R$ 0,00</strong>
-    </div>
-    <div id="listaDebitoCC"></div>
   </div>
 
   <div class="section">
@@ -978,37 +973,6 @@ function saveModal() {
 
 
 // ── Contas Correntes Múltiplas ──
-// O saldo líquido do mês é propagado automaticamente para o próximo mês
-// como uma entrada especial "_saldoAnterior" em cada conta corrente.
-
-function propagarSaldoCC() {
-  // Calcula saldo líquido do mês atual e injeta no próximo mês
-  const key = currentKey();
-  const md = getMonthData(key);
-  const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
-  const totalCC = (md.contasCorrente||[]).reduce((s,c)=>s+Number(c.valor||0),0);
-  const totalDebito = (md.contasCorrente||[]).reduce((s,c)=>s+((c.debitos||[]).reduce((sd,d)=>sd+Number(d.valor||0),0)),0);
-  const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
-  let cartoes = 0;
-  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
-  const saldoLiquido = entradas + totalCC - totalDebito - fixas - cartoes;
-
-  let nm = currentMonth + 1, ny = currentYear;
-  if (nm > 11) { nm = 0; ny++; }
-  const nextKey = ny + "-" + String(nm+1).padStart(2,"0");
-  const nextMd = getMonthData(nextKey);
-  if (!nextMd.contasCorrente) nextMd.contasCorrente = [];
-
-  // Atualiza ou cria entrada de saldo anterior
-  const existing = nextMd.contasCorrente.find(c => c._saldoAnterior);
-  if (existing) {
-    existing.valor = saldoLiquido;
-  } else {
-    nextMd.contasCorrente.push({ id: "saldo_anterior_" + nextKey, nome: "Saldo anterior", valor: saldoLiquido, _saldoAnterior: true });
-  }
-}
-
-
 
 // ── Toggle Investimento (começa minimizado) ──
 function toggleInvest() {
@@ -1065,10 +1029,6 @@ function excluirCartao(id) {
   renderAll();
 }
 
-// ── Saldo automático para próximo mês (sem botão) ──
-// Função mantida para compatibilidade, mas não é mais chamada manualmente.
-function transferirSaldoProximoMes() { propagarSaldoCC(); scheduleSave(); }
-
 // ── Toggle Projeção Acumulada ──
 function toggleProjAcum() {
   const body = document.getElementById("projAcumBody");
@@ -1087,7 +1047,6 @@ function renderCC(md) {
   const lista = document.getElementById("listaCC");
   if (!lista) return;
   const ccs = (md.contasCorrente || []).filter(c => !c._saldoAnterior);
-  const saldoAnt = (md.contasCorrente || []).find(c => c._saldoAnterior);
 
   lista.innerHTML = ccs.length === 0
     ? '<div style="color:#555;font-size:12px;padding:6px 0;">Nenhuma conta adicionada</div>'
@@ -1121,18 +1080,6 @@ function renderCC(md) {
           </div>
         </div>`;
       }).join("");
-
-  // Mostrar saldo anterior se existir
-  const listaDebito = document.getElementById("listaDebitoCC");
-  if (listaDebito) {
-    if (saldoAnt) {
-      listaDebito.innerHTML = `<div style="font-size:11px;color:#60a5fa;padding:4px 0;text-align:center;">
-        &#128197; Saldo recebido do mês anterior: <strong style="color:#60a5fa;">${fmt(saldoAnt.valor)}</strong>
-      </div>`;
-    } else {
-      listaDebito.innerHTML = '';
-    }
-  }
 
   updateCCSaldo(md);
 }
@@ -1256,23 +1203,8 @@ function updateCCField(id, field, val) {
 }
 
 function updateCCSaldo(md) {
-  const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
-  const totalCC = (md.contasCorrente||[]).filter(c=>!c._saldoAnterior).reduce((s,c)=>s+Number(c.valor||0),0);
-  const saldoAnt = ((md.contasCorrente||[]).find(c=>c._saldoAnterior)||{}).valor || 0;
-  const totalDebito = (md.contasCorrente||[]).filter(c=>!c._saldoAnterior).reduce((s,c)=>s+((c.debitos||[]).reduce((sd,d)=>sd+Number(d.valor||0),0)),0);
-  const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
-  let cartoes = 0;
-  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
-
-  const saldo = entradas + totalCC + saldoAnt - totalDebito - fixas - cartoes;
-  const el = document.getElementById("ccSaldoVal");
-  const box = document.getElementById("ccSaldoBox");
-  if (!el || !box) return;
-  el.textContent = fmt(saldo);
-  box.className = "cc-saldo " + (saldo>0?"pos":saldo<0?"neg":"zer");
-  el.style.color = saldo>0?"#10b981":saldo<0?"#ef4444":"#f59e0b";
-  // Propagar automaticamente para o próximo mês
-  propagarSaldoCC();
+  // Função mantida para compatibilidade — atualiza o resumo geral
+  updateSummary(md);
 }
 
 function onCCChange() {
