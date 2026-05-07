@@ -357,7 +357,15 @@ let CARTOES = JSON.parse(localStorage.getItem("cf_cartoes") || "null") || CARTOE
 function saveCartoes() { localStorage.setItem("cf_cartoes", JSON.stringify(CARTOES)); }
 const LOCAL_KEY = "cf_data_v4";
 
+// Restaurar mês salvo ou usar Maio/2026 como padrão
 let currentYear = 2026, currentMonth = 4;
+try {
+  const savedNav = JSON.parse(localStorage.getItem("cf_nav_month"));
+  if (savedNav && savedNav.y && savedNav.m !== undefined) {
+    currentYear = savedNav.y;
+    currentMonth = savedNav.m;
+  }
+} catch(e) {}
 let data = {};
 let saveTimer = null;
 let modalCtx = null;
@@ -509,6 +517,8 @@ function changeMonth(dir) {
   currentMonth += dir;
   if (currentMonth > 11) { currentMonth = 0; currentYear++; }
   if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+  // Salvar mês atual no localStorage para restaurar após refresh
+  try { localStorage.setItem("cf_nav_month", JSON.stringify({y: currentYear, m: currentMonth})); } catch(e) {}
   renderAll();
 }
 
