@@ -341,8 +341,8 @@
 </div>
 
 <script>
-const FB_PROJECT = "controlefinancpaulo";
-const FB_API_KEY = "AIzaSyATt31uIgZSXPkZ3oBN9A9sUYSzeClhbgM";
+const FB_PROJECT = "controlefinancpaulo-922f8";
+const FB_API_KEY = "AIzaSyCfid7JjH-t6JNtnlwB2qw2e5DeuT8B9mM";
 const FB_DOC_URL = "https://firestore.googleapis.com/v1/projects/" + FB_PROJECT + "/databases/(default)/documents/financeiro/dados?key=" + FB_API_KEY;
 
 const MESES = ["Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -442,39 +442,10 @@ function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(data
 function loadLocal() { try { const r = localStorage.getItem(LOCAL_KEY); if(r){ data = JSON.parse(r); return true; } } catch(e){} return false; }
 
 
-// ── Migração definitiva v2 ──
+// ── Migração removida — não é mais necessária ──
 function migrarDados2025para2026() {
-  // Resetar flag para forçar migração limpa
-  // (remova esta linha após primeira execução bem-sucedida)
-  localStorage.removeItem("migrado2026");
-
-  if (localStorage.getItem("migrado2026") === "1") return;
-
-  // Copiar 2025-05 → 2026-05 preservando TUDO (entradas, fixas, cartoes, contasCorrente)
-  const src = data["2025-05"];
-  if (src) {
-    data["2026-05"] = JSON.parse(JSON.stringify(src));
-    const d = data["2026-05"];
-    // Resetar status pago
-    if (d.fixas) d.fixas.forEach(f => f.pago = false);
-    if (d.cartoes) Object.keys(d.cartoes).forEach(k => {
-      if (d.cartoes[k]) d.cartoes[k].pago = false;
-    });
-    console.log("Copiado 2025-05 → 2026-05. Cartões:", Object.keys(d.cartoes||{}).length);
-  }
-
-  // Deletar ABSOLUTAMENTE TUDO antes de Maio/2026
-  Object.keys(data).forEach(k => {
-    const parts = k.split("-");
-    const y = parseInt(parts[0]), m = parseInt(parts[1]);
-    if (y < 2026 || (y === 2026 && m < 5)) {
-      delete data[k];
-      console.log("Deletado:", k);
-    }
-  });
-
-  localStorage.setItem("migrado2026", "1");
-  scheduleSave();
+  // Migração desativada para evitar perda de dados
+  return;
 }
 
 const hadLocal = loadLocal();
@@ -483,11 +454,14 @@ renderAll();
 setSyncStatus("offline", hadLocal ? "&#128196; Cache local — sincronizando..." : "&#9679; Conectando...");
 
 fbLoad().then(remote => {
-  if (remote && remote.meses) {
+  if (remote && remote.meses && Object.keys(remote.meses).length > 0) {
     data = remote.meses;
-    migrarDados2025para2026();
     saveLocal();
     renderAll();
+  } else if (hadLocal && Object.keys(data).length > 0) {
+    // Firebase vazio mas temos dados locais — envia pro Firebase
+    console.log("Firebase vazio, enviando dados locais...");
+    fbSave({ meses: data }).then(() => console.log("Dados locais enviados ao Firebase"));
   }
   setSyncStatus("saved");
 }).catch(err => {
