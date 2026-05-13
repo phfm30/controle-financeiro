@@ -357,7 +357,6 @@ let CARTOES = JSON.parse(localStorage.getItem("cf_cartoes") || "null") || CARTOE
 function saveCartoes() { localStorage.setItem("cf_cartoes", JSON.stringify(CARTOES)); }
 const LOCAL_KEY = "cf_data_v4";
 
-// Restaurar mês/ano da última visita do usuário
 const _savedNav = JSON.parse(localStorage.getItem("cf_nav") || "null");
 const _now = new Date();
 let currentYear  = _savedNav ? _savedNav.year  : _now.getFullYear();
