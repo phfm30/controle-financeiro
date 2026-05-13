@@ -445,22 +445,6 @@ function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(data
 function loadLocal() { try { const r = localStorage.getItem(LOCAL_KEY); if(r){ data = JSON.parse(r); return true; } } catch(e){} return false; }
 
 
-// ── Migração definitiva v2 ──
-function migrarDados2025para2026() {
-  if (localStorage.getItem("migrado2026") === "1") return;
-
-  // Copiar 2025-05 → 2026-05 preservando TUDO (entradas, fixas, cartoes, contasCorrente)
-  const src = data["2025-05"];
-  if (src) {
-    data["2026-05"] = JSON.parse(JSON.stringify(src));
-    const d = data["2026-05"];
-    // Resetar status pago
-    if (d.fixas) d.fixas.forEach(f => f.pago = false);
-    if (d.cartoes) Object.keys(d.cartoes).forEach(k => {
-      if (d.cartoes[k]) d.cartoes[k].pago = false;
-    });
-    console.log("Copiado 2025-05 → 2026-05. Cartões:", Object.keys(d.cartoes||{}).length);
-  }
 
   // Deletar ABSOLUTAMENTE TUDO antes de Maio/2026
   Object.keys(data).forEach(k => {
@@ -477,15 +461,13 @@ function migrarDados2025para2026() {
 }
 
 const hadLocal = loadLocal();
-migrarDados2025para2026();
 renderAll();
 setSyncStatus("offline", hadLocal ? "&#128196; Cache local — sincronizando..." : "&#9679; Conectando...");
 
 fbLoad().then(remote => {
   if (remote && remote.meses) {
     data = remote.meses;
-    migrarDados2025para2026();
-    saveLocal();
+        saveLocal();
     renderAll();
   }
   setSyncStatus("saved");
