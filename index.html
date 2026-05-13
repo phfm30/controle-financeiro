@@ -341,8 +341,8 @@
 </div>
 
 <script>
-const FB_PROJECT = "controlefinancpaulo-922f8";
-const FB_API_KEY = "AIzaSyCfid7JjH-t6JNtnlwB2qw2e5DeuT8B9mM";
+const FB_PROJECT = "controlefinancpaulo";
+const FB_API_KEY = "AIzaSyATt31uIgZSXPkZ3oBN9A9sUYSzeClhbgM";
 const FB_DOC_URL = "https://firestore.googleapis.com/v1/projects/" + FB_PROJECT + "/databases/(default)/documents/financeiro/dados?key=" + FB_API_KEY;
 
 const MESES = ["Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -357,15 +357,11 @@ let CARTOES = JSON.parse(localStorage.getItem("cf_cartoes") || "null") || CARTOE
 function saveCartoes() { localStorage.setItem("cf_cartoes", JSON.stringify(CARTOES)); }
 const LOCAL_KEY = "cf_data_v4";
 
-// Restaurar mês salvo ou usar Maio/2026 como padrão
-let currentYear = 2026, currentMonth = 4;
-try {
-  const savedNav = JSON.parse(localStorage.getItem("cf_nav_month"));
-  if (savedNav && savedNav.y && savedNav.m !== undefined) {
-    currentYear = savedNav.y;
-    currentMonth = savedNav.m;
-  }
-} catch(e) {}
+// Restaurar mês/ano da última visita do usuário
+const _savedNav = JSON.parse(localStorage.getItem("cf_nav") || "null");
+const _now = new Date();
+let currentYear  = _savedNav ? _savedNav.year  : _now.getFullYear();
+let currentMonth = _savedNav ? _savedNav.month : _now.getMonth();
 let data = {};
 let saveTimer = null;
 let modalCtx = null;
@@ -450,10 +446,35 @@ function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(data
 function loadLocal() { try { const r = localStorage.getItem(LOCAL_KEY); if(r){ data = JSON.parse(r); return true; } } catch(e){} return false; }
 
 
-// ── Migração desativada (já executada) ──
+// ── Migração definitiva v2 ──
 function migrarDados2025para2026() {
-  // Migração removida para evitar perda de dados
-  return;
+  if (localStorage.getItem("migrado2026") === "1") return;
+
+  // Copiar 2025-05 → 2026-05 preservando TUDO (entradas, fixas, cartoes, contasCorrente)
+  const src = data["2025-05"];
+  if (src) {
+    data["2026-05"] = JSON.parse(JSON.stringify(src));
+    const d = data["2026-05"];
+    // Resetar status pago
+    if (d.fixas) d.fixas.forEach(f => f.pago = false);
+    if (d.cartoes) Object.keys(d.cartoes).forEach(k => {
+      if (d.cartoes[k]) d.cartoes[k].pago = false;
+    });
+    console.log("Copiado 2025-05 → 2026-05. Cartões:", Object.keys(d.cartoes||{}).length);
+  }
+
+  // Deletar ABSOLUTAMENTE TUDO antes de Maio/2026
+  Object.keys(data).forEach(k => {
+    const parts = k.split("-");
+    const y = parseInt(parts[0]), m = parseInt(parts[1]);
+    if (y < 2026 || (y === 2026 && m < 5)) {
+      delete data[k];
+      console.log("Deletado:", k);
+    }
+  });
+
+  localStorage.setItem("migrado2026", "1");
+  scheduleSave();
 }
 
 const hadLocal = loadLocal();
@@ -462,15 +483,11 @@ renderAll();
 setSyncStatus("offline", hadLocal ? "&#128196; Cache local — sincronizando..." : "&#9679; Conectando...");
 
 fbLoad().then(remote => {
-  if (remote && remote.meses && Object.keys(remote.meses).length > 0) {
-    // Firebase tem dados — usa eles
+  if (remote && remote.meses) {
     data = remote.meses;
+    migrarDados2025para2026();
     saveLocal();
     renderAll();
-  } else if (hadLocal && Object.keys(data).length > 0) {
-    // Firebase vazio mas temos dados locais — envia pro Firebase
-    console.log("Firebase vazio, enviando dados locais...");
-    fbSave({ meses: data }).then(() => console.log("Dados locais enviados ao Firebase"));
   }
   setSyncStatus("saved");
 }).catch(err => {
@@ -517,8 +534,7 @@ function changeMonth(dir) {
   currentMonth += dir;
   if (currentMonth > 11) { currentMonth = 0; currentYear++; }
   if (currentMonth < 0) { currentMonth = 11; currentYear--; }
-  // Salvar mês atual no localStorage para restaurar após refresh
-  try { localStorage.setItem("cf_nav_month", JSON.stringify({y: currentYear, m: currentMonth})); } catch(e) {}
+  localStorage.setItem("cf_nav", JSON.stringify({ year: currentYear, month: currentMonth }));
   renderAll();
 }
 
