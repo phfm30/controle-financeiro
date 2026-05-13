@@ -446,20 +446,6 @@ function loadLocal() { try { const r = localStorage.getItem(LOCAL_KEY); if(r){ d
 
 
 
-  // Deletar ABSOLUTAMENTE TUDO antes de Maio/2026
-  Object.keys(data).forEach(k => {
-    const parts = k.split("-");
-    const y = parseInt(parts[0]), m = parseInt(parts[1]);
-    if (y < 2026 || (y === 2026 && m < 5)) {
-      delete data[k];
-      console.log("Deletado:", k);
-    }
-  });
-
-  localStorage.setItem("migrado2026", "1");
-  scheduleSave();
-}
-
 const hadLocal = loadLocal();
 renderAll();
 setSyncStatus("offline", hadLocal ? "&#128196; Cache local — sincronizando..." : "&#9679; Conectando...");
