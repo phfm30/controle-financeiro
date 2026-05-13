@@ -357,10 +357,10 @@ let CARTOES = JSON.parse(localStorage.getItem("cf_cartoes") || "null") || CARTOE
 function saveCartoes() { localStorage.setItem("cf_cartoes", JSON.stringify(CARTOES)); }
 const LOCAL_KEY = "cf_data_v4";
 
-const _nav = JSON.parse(localStorage.getItem("cf_nav") || "null");
-const _now = new Date();
-let currentYear  = _nav ? _nav.year  : _now.getFullYear();
-let currentMonth = _nav ? _nav.month : _now.getMonth();
+const _cfNav = JSON.parse(localStorage.getItem("cf_nav") || "null");
+const _cfNow = new Date();
+let currentYear  = _cfNav ? _cfNav.year  : _cfNow.getFullYear();
+let currentMonth = _cfNav ? _cfNav.month : _cfNow.getMonth();
 let data = {};
 let saveTimer = null;
 let modalCtx = null;
