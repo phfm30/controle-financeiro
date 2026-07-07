@@ -357,10 +357,7 @@ let CARTOES = JSON.parse(localStorage.getItem("cf_cartoes") || "null") || CARTOE
 function saveCartoes() { localStorage.setItem("cf_cartoes", JSON.stringify(CARTOES)); }
 const LOCAL_KEY = "cf_data_v4";
 
-const _cfNav = JSON.parse(localStorage.getItem("cf_nav") || "null");
-const _cfNow = new Date();
-let currentYear  = _cfNav ? _cfNav.year  : _cfNow.getFullYear();
-let currentMonth = _cfNav ? _cfNav.month : _cfNow.getMonth();
+let currentYear = 2026, currentMonth = 4;
 let data = {};
 let saveTimer = null;
 let modalCtx = null;
@@ -445,15 +442,55 @@ function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(data
 function loadLocal() { try { const r = localStorage.getItem(LOCAL_KEY); if(r){ data = JSON.parse(r); return true; } } catch(e){} return false; }
 
 
+// ── Migração definitiva v2 ──
+function migrarDados2025para2026() {
+  // Resetar flag para forçar migração limpa
+  // (remova esta linha após primeira execução bem-sucedida)
+  localStorage.removeItem("migrado2026");
+
+  if (localStorage.getItem("migrado2026") === "1") return;
+
+  // Copiar 2025-05 → 2026-05 preservando TUDO (entradas, fixas, cartoes, contasCorrente)
+  const src = data["2025-05"];
+  if (src) {
+    data["2026-05"] = JSON.parse(JSON.stringify(src));
+    const d = data["2026-05"];
+    // Resetar status pago
+    if (d.fixas) d.fixas.forEach(f => f.pago = false);
+    if (d.cartoes) Object.keys(d.cartoes).forEach(k => {
+      if (d.cartoes[k]) d.cartoes[k].pago = false;
+    });
+    console.log("Copiado 2025-05 → 2026-05. Cartões:", Object.keys(d.cartoes||{}).length);
+  }
+
+  // Deletar ABSOLUTAMENTE TUDO antes de Maio/2026
+  Object.keys(data).forEach(k => {
+    const parts = k.split("-");
+    const y = parseInt(parts[0]), m = parseInt(parts[1]);
+    if (y < 2026 || (y === 2026 && m < 5)) {
+      delete data[k];
+      console.log("Deletado:", k);
+    }
+  });
+
+  localStorage.setItem("migrado2026", "1");
+  scheduleSave();
+}
 
 const hadLocal = loadLocal();
+migrarDados2025para2026();
 renderAll();
 setSyncStatus("offline", hadLocal ? "&#128196; Cache local — sincronizando..." : "&#9679; Conectando...");
 
 fbLoad().then(remote => {
   if (remote && remote.meses) {
     data = remote.meses;
-        saveLocal();
+    if (Array.isArray(remote.cartoes) && remote.cartoes.length) {
+      CARTOES = remote.cartoes;
+      saveCartoes();
+    }
+    migrarDados2025para2026();
+    saveLocal();
     renderAll();
   }
   setSyncStatus("saved");
@@ -467,7 +504,7 @@ function scheduleSave() {
   setSyncStatus("saving");
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    fbSave({ meses: data }).then(() => {
+    fbSave({ meses: data, cartoes: CARTOES }).then(() => {
       setSyncStatus("saved");
     }).catch(e => {
       console.error("fbSave error:", e);
@@ -501,7 +538,6 @@ function changeMonth(dir) {
   currentMonth += dir;
   if (currentMonth > 11) { currentMonth = 0; currentYear++; }
   if (currentMonth < 0) { currentMonth = 11; currentYear--; }
-  localStorage.setItem("cf_nav", JSON.stringify({ year: currentYear, month: currentMonth }));
   renderAll();
 }
 
@@ -605,19 +641,49 @@ function renderEntradas(md) {
   document.getElementById("totalEntradas").textContent = fmt(entradas.reduce((s,e)=>s+Number(e.valor||0),0));
 }
 
+function propagarEntrada(item, startKey) {
+  let [y, m] = startKey.split("-").map(Number);
+  for (let i = 1; i <= 24; i++) {
+    m++; if (m > 12) { m = 1; y++; }
+    const targetKey = `${y}-${String(m).padStart(2, '0')}`;
+    const md = getMonthData(targetKey);
+    if (!Array.isArray(md.entradas)) md.entradas = [];
+    const existe = md.entradas.find(e => e.nome === item.nome);
+    if (!existe) md.entradas.push({ nome: item.nome, valor: item.valor });
+  }
+}
+
 function addEntrada() {
   const nome = document.getElementById("entradaNome").value.trim();
   const valor = parseFloat(document.getElementById("entradaValor").value);
   if (!nome || isNaN(valor)) return alert("Preencha todos os campos");
-  getMonthData(currentKey()).entradas.push({ nome, valor });
+  const novaEntrada = { nome, valor };
+  getMonthData(currentKey()).entradas.push(novaEntrada);
+  const replicar = confirm("Replicar esta entrada nos próximos meses?\n\nOK = replicar por 24 meses à frente\nCancelar = somente neste mês");
+  if (replicar) propagarEntrada(novaEntrada, currentKey());
   document.getElementById("entradaNome").value = "";
   document.getElementById("entradaValor").value = "";
   hideForm("formEntrada"); scheduleSave(); renderAll();
 }
 
 function removeEntrada(i) {
+  const md = getMonthData(currentKey());
+  const item = md.entradas[i];
+  if (!item) return;
   if (!confirm("Remover entrada?")) return;
-  getMonthData(currentKey()).entradas.splice(i, 1);
+  const removeFuturos = confirm("Remover esta entrada dos meses seguintes também?");
+  md.entradas.splice(i, 1);
+  if (removeFuturos) {
+    const [y, m] = currentKey().split("-").map(Number);
+    Object.keys(data).forEach(key => {
+      const [ky, km] = key.split("-").map(Number);
+      if (ky > y || (ky === y && km > m)) {
+        if (data[key] && Array.isArray(data[key].entradas)) {
+          data[key].entradas = data[key].entradas.filter(e => e.nome !== item.nome);
+        }
+      }
+    });
+  }
   scheduleSave(); renderAll();
 }
 
@@ -650,12 +716,29 @@ function togglePagoFixa(i, pago) {
   }
 }
 
+function propagarFixa(item, startKey) {
+  // Propaga a conta fixa por 24 meses à frente
+  let [y, m] = startKey.split("-").map(Number);
+  for (let i = 1; i <= 24; i++) {
+    m++; if (m > 12) { m = 1; y++; }
+    const targetKey = `${y}-${String(m).padStart(2, '0')}`;
+    const md = getMonthData(targetKey);
+    if (!Array.isArray(md.fixas)) md.fixas = [];
+    const existe = md.fixas.find(f => f.nome === item.nome);
+    if (!existe) {
+      md.fixas.push({ nome: item.nome, valor: item.valor, venc: item.venc || "", pago: false });
+    }
+  }
+}
+
 function addFixa() {
   const nome = document.getElementById("fixaNome").value.trim();
   const valor = parseFloat(document.getElementById("fixaValor").value);
   const venc = document.getElementById("fixaVenc").value;
   if (!nome || isNaN(valor)) return alert("Preencha nome e valor");
-  getMonthData(currentKey()).fixas.push({ nome, valor, venc: venc || "", pago: false });
+  const novaFixa = { nome, valor, venc: venc || "", pago: false };
+  getMonthData(currentKey()).fixas.push(novaFixa);
+  propagarFixa(novaFixa, currentKey());
   document.getElementById("fixaNome").value = "";
   document.getElementById("fixaValor").value = "";
   document.getElementById("fixaVenc").value = "";
@@ -980,6 +1063,7 @@ function adicionarCartao() {
   const id = "cartao_" + Date.now();
   CARTOES.push({ id, nome, cor, venc });
   saveCartoes();
+  scheduleSave();
   document.getElementById("novoCartaoNome").value = "";
   document.getElementById("novoCartaoVenc").value = "";
   renderGerenciarCartoes();
