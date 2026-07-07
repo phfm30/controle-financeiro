@@ -358,6 +358,16 @@ function saveCartoes() { localStorage.setItem("cf_cartoes", JSON.stringify(CARTO
 const LOCAL_KEY = "cf_data_v4";
 
 let currentYear = 2026, currentMonth = 4;
+(function loadCurrentMonth() {
+  try {
+    const saved = localStorage.getItem("cf_currentMonth");
+    if (saved) {
+      const [y, m] = saved.split("-").map(Number);
+      if (!isNaN(y) && !isNaN(m)) { currentYear = y; currentMonth = m; }
+    }
+  } catch(e) {}
+})();
+let lastViewedFromRemote = null;
 let data = {};
 let saveTimer = null;
 let modalCtx = null;
@@ -489,6 +499,10 @@ fbLoad().then(remote => {
       CARTOES = remote.cartoes;
       saveCartoes();
     }
+    if (remote.lastViewed && typeof remote.lastViewed === "string") {
+      const [ry, rm] = remote.lastViewed.split("-").map(Number);
+      if (!isNaN(ry) && !isNaN(rm)) { currentYear = ry; currentMonth = rm; }
+    }
     migrarDados2025para2026();
     saveLocal();
     renderAll();
@@ -504,7 +518,7 @@ function scheduleSave() {
   setSyncStatus("saving");
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    fbSave({ meses: data, cartoes: CARTOES }).then(() => {
+    fbSave({ meses: data, cartoes: CARTOES, lastViewed: currentYear + "-" + currentMonth }).then(() => {
       setSyncStatus("saved");
     }).catch(e => {
       console.error("fbSave error:", e);
@@ -538,6 +552,8 @@ function changeMonth(dir) {
   currentMonth += dir;
   if (currentMonth > 11) { currentMonth = 0; currentYear++; }
   if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+  try { localStorage.setItem("cf_currentMonth", currentYear + "-" + currentMonth); } catch(e) {}
+  scheduleSave();
   renderAll();
 }
 
