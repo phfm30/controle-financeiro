@@ -60,7 +60,7 @@
   .parcela-badge { background: #2d1b69; color: #a78bfa; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
   .recorrente-badge { background: #1a3a2a; color: #10b981; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
   .avulso-badge { background: #3a2a1a; color: #f59e0b; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
-  .credito-badge { background: #052e16; color: #10b981; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; border: 1px solid #10b981; }
+  .credito-badge { background: #052e16; color: #10b981; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
   .add-form { background: #252540; border-radius: 10px; padding: 12px; margin-top: 10px; }
   .add-form h4 { font-size: 12px; color: #a78bfa; margin-bottom: 10px; font-weight: 700; }
   .form-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
@@ -359,6 +359,16 @@ function saveCartoes() { localStorage.setItem("cf_cartoes", JSON.stringify(CARTO
 const LOCAL_KEY = "cf_data_v4";
 
 let currentYear = 2026, currentMonth = 4;
+(function loadCurrentMonth() {
+  try {
+    const saved = localStorage.getItem("cf_currentMonth");
+    if (saved) {
+      const [y, m] = saved.split("-").map(Number);
+      if (!isNaN(y) && !isNaN(m)) { currentYear = y; currentMonth = m; }
+    }
+  } catch(e) {}
+})();
+let lastViewedFromRemote = null;
 let data = {};
 let saveTimer = null;
 let modalCtx = null;
@@ -486,6 +496,14 @@ setSyncStatus("offline", hadLocal ? "&#128196; Cache local — sincronizando..."
 fbLoad().then(remote => {
   if (remote && remote.meses) {
     data = remote.meses;
+    if (Array.isArray(remote.cartoes) && remote.cartoes.length) {
+      CARTOES = remote.cartoes;
+      saveCartoes();
+    }
+    if (remote.lastViewed && typeof remote.lastViewed === "string") {
+      const [ry, rm] = remote.lastViewed.split("-").map(Number);
+      if (!isNaN(ry) && !isNaN(rm)) { currentYear = ry; currentMonth = rm; }
+    }
     migrarDados2025para2026();
     saveLocal();
     renderAll();
@@ -501,7 +519,7 @@ function scheduleSave() {
   setSyncStatus("saving");
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    fbSave({ meses: data }).then(() => {
+    fbSave({ meses: data, cartoes: CARTOES, lastViewed: currentYear + "-" + currentMonth }).then(() => {
       setSyncStatus("saved");
     }).catch(e => {
       console.error("fbSave error:", e);
@@ -535,6 +553,8 @@ function changeMonth(dir) {
   currentMonth += dir;
   if (currentMonth > 11) { currentMonth = 0; currentYear++; }
   if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+  try { localStorage.setItem("cf_currentMonth", currentYear + "-" + currentMonth); } catch(e) {}
+  scheduleSave();
   renderAll();
 }
 
@@ -638,19 +658,49 @@ function renderEntradas(md) {
   document.getElementById("totalEntradas").textContent = fmt(entradas.reduce((s,e)=>s+Number(e.valor||0),0));
 }
 
+function propagarEntrada(item, startKey) {
+  let [y, m] = startKey.split("-").map(Number);
+  for (let i = 1; i <= 24; i++) {
+    m++; if (m > 12) { m = 1; y++; }
+    const targetKey = `${y}-${String(m).padStart(2, '0')}`;
+    const md = getMonthData(targetKey);
+    if (!Array.isArray(md.entradas)) md.entradas = [];
+    const existe = md.entradas.find(e => e.nome === item.nome);
+    if (!existe) md.entradas.push({ nome: item.nome, valor: item.valor });
+  }
+}
+
 function addEntrada() {
   const nome = document.getElementById("entradaNome").value.trim();
   const valor = parseFloat(document.getElementById("entradaValor").value);
   if (!nome || isNaN(valor)) return alert("Preencha todos os campos");
-  getMonthData(currentKey()).entradas.push({ nome, valor });
+  const novaEntrada = { nome, valor };
+  getMonthData(currentKey()).entradas.push(novaEntrada);
+  const replicar = confirm("Replicar esta entrada nos próximos meses?\n\nOK = replicar por 24 meses à frente\nCancelar = somente neste mês");
+  if (replicar) propagarEntrada(novaEntrada, currentKey());
   document.getElementById("entradaNome").value = "";
   document.getElementById("entradaValor").value = "";
   hideForm("formEntrada"); scheduleSave(); renderAll();
 }
 
 function removeEntrada(i) {
+  const md = getMonthData(currentKey());
+  const item = md.entradas[i];
+  if (!item) return;
   if (!confirm("Remover entrada?")) return;
-  getMonthData(currentKey()).entradas.splice(i, 1);
+  const removeFuturos = confirm("Remover esta entrada dos meses seguintes também?");
+  md.entradas.splice(i, 1);
+  if (removeFuturos) {
+    const [y, m] = currentKey().split("-").map(Number);
+    Object.keys(data).forEach(key => {
+      const [ky, km] = key.split("-").map(Number);
+      if (ky > y || (ky === y && km > m)) {
+        if (data[key] && Array.isArray(data[key].entradas)) {
+          data[key].entradas = data[key].entradas.filter(e => e.nome !== item.nome);
+        }
+      }
+    });
+  }
   scheduleSave(); renderAll();
 }
 
@@ -683,12 +733,29 @@ function togglePagoFixa(i, pago) {
   }
 }
 
+function propagarFixa(item, startKey) {
+  // Propaga a conta fixa por 24 meses à frente
+  let [y, m] = startKey.split("-").map(Number);
+  for (let i = 1; i <= 24; i++) {
+    m++; if (m > 12) { m = 1; y++; }
+    const targetKey = `${y}-${String(m).padStart(2, '0')}`;
+    const md = getMonthData(targetKey);
+    if (!Array.isArray(md.fixas)) md.fixas = [];
+    const existe = md.fixas.find(f => f.nome === item.nome);
+    if (!existe) {
+      md.fixas.push({ nome: item.nome, valor: item.valor, venc: item.venc || "", pago: false });
+    }
+  }
+}
+
 function addFixa() {
   const nome = document.getElementById("fixaNome").value.trim();
   const valor = parseFloat(document.getElementById("fixaValor").value);
   const venc = document.getElementById("fixaVenc").value;
   if (!nome || isNaN(valor)) return alert("Preencha nome e valor");
-  getMonthData(currentKey()).fixas.push({ nome, valor, venc: venc || "", pago: false });
+  const novaFixa = { nome, valor, venc: venc || "", pago: false };
+  getMonthData(currentKey()).fixas.push(novaFixa);
+  propagarFixa(novaFixa, currentKey());
   document.getElementById("fixaNome").value = "";
   document.getElementById("fixaValor").value = "";
   document.getElementById("fixaVenc").value = "";
@@ -722,7 +789,7 @@ function renderCartoes(md) {
   let totalGeral = 0;
   lista.innerHTML = CARTOES.map(c => {
     const itens = (md.cartoes[c.id]||{}).itens || [];
-    const total = itens.reduce((s,it)=> it.tipo==="credito" ? s-Number(it.valor||0) : s+Number(it.valor||0), 0);
+    const total = itens.reduce((s,it) => it.tipo === 'credito' ? s - Number(it.valor||0) : s + Number(it.valor||0), 0);
     totalGeral += total;
     const pago = (md.cartoes[c.id]||{}).pago || false;
     const nomeStyle = pago ? 'text-decoration:line-through;opacity:0.6;' : '';
@@ -756,16 +823,15 @@ function renderCartaoBody(c, itens) {
         const badge = it.tipo==="parcela"
           ? '<span class="parcela-badge">'+it.parcelaAtual+'/'+it.parcelaTotal+'</span>'
           : it.tipo==="recorrente" ? '<span class="recorrente-badge">Recorrente</span>'
-          : it.tipo==="credito" ? '<span class="credito-badge">💚 Crédito</span>'
+          : it.tipo==="credito" ? '<span class="credito-badge">Crédito/Estorno</span>'
           : '<span class="avulso-badge">Avulso</span>';
         const sub = it.tipo==="parcela" ? 'Faltam '+(parseInt(it.parcelaTotal)-parseInt(it.parcelaAtual))+' parcelas'
-          : it.tipo==="recorrente" ? "Todo mes"
-          : it.tipo==="credito" ? "Estorno / Crédito na fatura" : "";
+          : it.tipo==="recorrente" ? "Todo mes" : "";
         const autoTag = it.propagado ? ' <span style="font-size:9px;color:#555;font-style:italic;">auto</span>' : '';
-        const valorDisplay = it.tipo==="credito"
-          ? '<span class="item-value" style="color:#10b981;">-'+fmt(it.valor)+'</span>'
-          : '<span class="item-value">'+fmt(it.valor)+'</span>';
-        return '<div class="item-row" style="'+(it.tipo==="credito"?'background:#0a2a1a;border:1px solid #1a4a2a;':'')+'"><div class="item-info"><div class="item-name">'+it.nome+' '+badge+autoTag+'</div>'+(it.dia?'<div class="item-sub" style="font-size:10px;color:#888;">'+String(it.dia).padStart(2,'0')+'/'+String(currentMonth+1).padStart(2,'0')+'</div>':'')+(sub?'<div class="item-sub">'+sub+'</div>':'')+'</div>'+valorDisplay+'<div class="item-actions"><button class="btn-icon" onclick="editItem(\'cartao\','+i+',\''+c.id+'\')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeCartaoItem(\''+c.id+'\','+i+')">&#128465;&#65039;</button></div></div>';
+        const isCredito = it.tipo === 'credito';
+        const valorDisplay = isCredito ? '- '+fmt(it.valor) : fmt(it.valor);
+        const valorColor = isCredito ? '#10b981' : '#a78bfa';
+        return '<div class="item-row"><div class="item-info"><div class="item-name">'+it.nome+' '+badge+autoTag+'</div>'+(it.dia?'<div class="item-sub" style="font-size:10px;color:#888;">'+String(it.dia).padStart(2,'0')+'/'+String(currentMonth+1).padStart(2,'0')+'</div>':'')+(sub?'<div class="item-sub">'+sub+'</div>':'')+'</div><span class="item-value" style="color:'+valorColor+';">'+valorDisplay+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'cartao\','+i+',\''+c.id+'\')">&#9999;&#65039;</button><button class="btn-icon" onclick="removeCartaoItem(\''+c.id+'\','+i+')">&#128465;&#65039;</button></div></div>';
       }).join("");
 
   const proj = buildProjecao(c.id);
@@ -781,7 +847,7 @@ function renderCartaoBody(c, itens) {
     '<div class="add-form" id="form-'+c.id+'" style="display:none;"><h4>Novo Lancamento - '+c.nome+'</h4>' +
     '<div class="form-row"><div class="form-group"><label>Descricao</label><input type="text" data-field="nome" placeholder="Ex: Academia"/></div>' +
     '<div class="form-group" style="max-width:120px;"><label>Valor (R$)</label><input type="text" data-field="valor" placeholder="0,00" inputmode="decimal"/></div><div class="form-group" style="max-width:70px;"><label>Dia (opcional)</label><input type="number" data-field="dia" placeholder="Ex: 13" min="1" max="31"/></div></div>' +
-    '<div class="form-row"><div class="form-group"><label>Tipo</label><select data-field="tipo" onchange="toggleParcelaFields(this)"><option value="avulso">Avulso</option><option value="parcela">Parcelado</option><option value="recorrente">Recorrente</option><option value="credito">💚 Crédito / Estorno</option></select></div></div>' +
+    '<div class="form-row"><div class="form-group"><label>Tipo</label><select data-field="tipo" onchange="toggleParcelaFields(this)"><option value="avulso">Avulso</option><option value="parcela">Parcelado</option><option value="recorrente">Recorrente</option><option value="credito">Crédito/Estorno</option></select></div></div>' +
     '<div class="parcela-fields" style="display:none;"><div class="form-row">' +
     '<div class="form-group"><label>Parcela atual</label><input type="number" data-field="parcAtual" placeholder="Ex: 2" min="1"/></div>' +
     '<div class="form-group"><label>Total parcelas</label><input type="number" data-field="parcTotal" placeholder="Ex: 12" min="1"/></div></div></div>' +
@@ -915,7 +981,7 @@ function updateSummary(md) {
   const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
   const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
   let cartoes = 0;
-  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=> it.tipo==="credito" ? s-Number(it.valor||0) : s+Number(it.valor||0), 0); });
+  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it) => it.tipo === 'credito' ? s - Number(it.valor||0) : s + Number(it.valor||0), 0); });
 
   const saidas = fixas + cartoes;
   const saldo = entradas - saidas;
@@ -1018,6 +1084,7 @@ function adicionarCartao() {
   const id = "cartao_" + Date.now();
   CARTOES.push({ id, nome, cor, venc });
   saveCartoes();
+  scheduleSave();
   document.getElementById("novoCartaoNome").value = "";
   document.getElementById("novoCartaoVenc").value = "";
   renderGerenciarCartoes();
@@ -1230,7 +1297,7 @@ function renderInvest(md) {
   const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
   const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
   let cartoes = 0;
-  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
+  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it) => it.tipo === 'credito' ? s - Number(it.valor||0) : s + Number(it.valor||0), 0); });
   const saidas = fixas + cartoes;
   const saldo = entradas - saidas;
   const pctSel = parseFloat(document.getElementById("inputPctInvest") ? document.getElementById("inputPctInvest").value : 20) || 20;
@@ -1311,7 +1378,7 @@ function renderPercentuais(md) {
   const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
   const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
   let cartoes = 0;
-  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
+  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it) => it.tipo === 'credito' ? s - Number(it.valor||0) : s + Number(it.valor||0), 0); });
   const total = fixas + cartoes;
 
   const pctFixas = total > 0 ? Math.round((fixas/total)*100) : 0;
@@ -1451,5 +1518,6 @@ document.addEventListener("DOMContentLoaded", function() {
   if (investArrow) investArrow.textContent = "▶";
 });
 </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v4513226cdae34746b4dedf0b4dfa099e1781791509496" integrity="sha512-ZE9pZaUXND66v380QUtch/5sE9tPFh2zg45pR2PB0CVkCtOREv2AJKkSidISWkysEuQ0EH8faUU5du78bx87UQ==" data-cf-beacon='{"version":"2024.11.0","token":"f0f03d0605bf45f1a3b17cf7d5e6861f","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
