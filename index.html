@@ -82,6 +82,8 @@
   .parcela-badge { background: #2d1b69; color: #a78bfa; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
   .recorrente-badge { background: #1a3a2a; color: #10b981; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
   .avulso-badge { background: #3a2a1a; color: #f59e0b; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; }
+  /* ── NOVO: badge estorno ── */
+  .estorno-badge { background: #0d2a1a; color: #10b981; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 700; border: 1px solid #10b98155; }
   .add-form { background: #252540; border-radius: 10px; padding: 12px; margin-top: 10px; animation: fadeIn 0.2s ease; }
   .add-form h4 { font-size: 12px; color: #a78bfa; margin-bottom: 10px; font-weight: 700; }
   .form-row { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
@@ -409,7 +411,10 @@
 <!-- MODAL GERENCIAR CARTÕES -->
 <div class="modal-overlay" id="modalCartoes" onclick="if(event.target===this)fecharGerenciarCartoes()">
   <div class="modal-box" style="max-width:380px;">
-    <div class="modal-header"><span class="modal-title">⚙ Gerenciar Cartões</span><button class="modal-close" onclick="fecharGerenciarCartoes()">✕</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <span style="font-size:15px;font-weight:700;color:#a78bfa;">⚙ Gerenciar Cartões</span>
+      <button onclick="fecharGerenciarCartoes()" style="background:none;border:none;color:#888;font-size:18px;cursor:pointer;">✕</button>
+    </div>
     <div id="listaGerenciarCartoes" style="margin-bottom:12px;"></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
       <input id="novoCartaoNome" type="text" placeholder="Nome do cartão" style="flex:1;min-width:100px;background:#1a1a2e;border:1px solid #3a3a5a;color:#fff;padding:8px;border-radius:8px;font-size:13px;"/>
@@ -437,13 +442,28 @@ const FB_API_KEY = "AIzaSyATt31uIgZSXPkZ3oBN9A9sUYSzeClhbgM";
 const FB_DOC_URL = "https://firestore.googleapis.com/v1/projects/" + FB_PROJECT + "/databases/(default)/documents/financeiro/dados?key=" + FB_API_KEY;
 
 const MESES = ["Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+// ── FIX 1: Nubank Isabelle adicionado ao DEFAULT ──
 const CARTOES_DEFAULT = [
-  { id: "nubank", nome: "Nubank", cor: "#820ad1", venc: 5 },
-  { id: "inter",  nome: "Inter",  cor: "#ff6600", venc: 7 },
-  { id: "xp",     nome: "XP",     cor: "#c0c0c0", venc: 5 },
-  { id: "caixa",  nome: "Caixa",  cor: "#005ca9", venc: 11 },
-  { id: "azul",   nome: "Azul",   cor: "#0057b8", venc: 8 },
+  { id: "nubank",           nome: "Nubank",          cor: "#820ad1", venc: 5  },
+  { id: "nubank_isabelle",  nome: "Nubank Isabelle",  cor: "#b040f0", venc: 5  },
+  { id: "inter",            nome: "Inter",            cor: "#ff6600", venc: 7  },
+  { id: "xp",               nome: "XP",               cor: "#c0c0c0", venc: 5  },
+  { id: "caixa",            nome: "Caixa",            cor: "#005ca9", venc: 11 },
+  { id: "azul",             nome: "Azul",             cor: "#0057b8", venc: 8  },
 ];
+
+// Migração: garante que Nubank Isabelle entra no localStorage existente
+(function migrarCartaoIsabelle() {
+  let saved = JSON.parse(localStorage.getItem("cf_cartoes") || "null");
+  if (!saved) return; // vai usar o default de qualquer forma
+  const jaExiste = saved.some(c => c.id === "nubank_isabelle");
+  if (!jaExiste) {
+    saved.splice(1, 0, { id: "nubank_isabelle", nome: "Nubank Isabelle", cor: "#b040f0", venc: 5 });
+    localStorage.setItem("cf_cartoes", JSON.stringify(saved));
+  }
+})();
+
 let CARTOES = JSON.parse(localStorage.getItem("cf_cartoes") || "null") || CARTOES_DEFAULT;
 function saveCartoes() { localStorage.setItem("cf_cartoes", JSON.stringify(CARTOES)); }
 const LOCAL_KEY = "cf_data_v4";
@@ -479,6 +499,14 @@ let currentYear = 2026, currentMonth = 4;
 let data = {};
 let saveTimer = null;
 let modalCtx = null;
+
+// ── FIX 2: helper para calcular total de itens respeitando estornos ──
+function calcTotalItens(itens) {
+  return (itens || []).reduce((s, it) => {
+    const v = Number(it.valor || 0);
+    return it.tipo === "estorno" ? s - v : s + v;
+  }, 0);
+}
 
 function toFirestore(obj) {
   if (obj === null || obj === undefined) return { nullValue: null };
@@ -522,10 +550,7 @@ async function fbLoad(timeoutMs = 7000) {
     const json = await res.json();
     if (!json.fields) return null;
     return fromFirestore({ mapValue: { fields: json.fields } });
-  } catch (e) {
-    clearTimeout(timer);
-    throw e;
-  }
+  } catch (e) { clearTimeout(timer); throw e; }
 }
 
 async function fbSave(obj, timeoutMs = 7000) {
@@ -535,19 +560,12 @@ async function fbSave(obj, timeoutMs = 7000) {
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(FB_DOC_URL, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields }),
-      signal: controller.signal,
-      mode: 'cors',
-      cache: 'no-store'
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }), signal: controller.signal, mode: 'cors', cache: 'no-store'
     });
     clearTimeout(timer);
     if (!res.ok) throw new Error('Save failed: ' + await res.text());
-  } catch (e) {
-    clearTimeout(timer);
-    throw e;
-  }
+  } catch (e) { clearTimeout(timer); throw e; }
 }
 
 function saveLocal() { try { localStorage.setItem(LOCAL_KEY, JSON.stringify(data)); } catch(e){} }
@@ -793,11 +811,12 @@ function renderCartoes(md) {
   let totalGeral = 0;
   lista.innerHTML = CARTOES.map(c => {
     const itens = (md.cartoes[c.id]||{}).itens || [];
-    const total = itens.reduce((s,it)=>s+Number(it.valor||0),0);
+    // FIX 2: usa calcTotalItens que subtrai estornos
+    const total = calcTotalItens(itens);
     totalGeral += total;
     const pago = (md.cartoes[c.id]||{}).pago || false;
     const nomeStyle = pago ? 'text-decoration:line-through;opacity:0.6;' : '';
-    const totalColor = pago ? '#10b981' : '#f59e0b';
+    const totalColor = pago ? '#10b981' : (total < 0 ? '#10b981' : '#f59e0b');
     const chk = pago ? ' checked' : '';
     return '<div class="cartao-block">' +
       '<div class="cartao-header" onclick="toggleCartao(\'' + c.id + '\')">' +
@@ -823,10 +842,21 @@ function renderCartaoBody(c, itens) {
   const catOpts = buildCatOptions("");
   const listaHtml = itens.length === 0 ? '<div class="empty-msg">Nenhum lancamento</div>'
     : itens.map((it,i) => {
-        const badge = it.tipo==="parcela"
-          ? '<span class="parcela-badge">'+it.parcelaAtual+'/'+it.parcelaTotal+'</span>'
-          : it.tipo==="recorrente" ? '<span class="recorrente-badge">Recorrente</span>'
-          : '<span class="avulso-badge">Avulso</span>';
+        // FIX 2: badge e cor para estorno
+        let badge, valorColor, valorPrefix;
+        if (it.tipo === "parcela") {
+          badge = '<span class="parcela-badge">'+it.parcelaAtual+'/'+it.parcelaTotal+'</span>';
+          valorColor = '#a78bfa'; valorPrefix = '';
+        } else if (it.tipo === "recorrente") {
+          badge = '<span class="recorrente-badge">Recorrente</span>';
+          valorColor = '#a78bfa'; valorPrefix = '';
+        } else if (it.tipo === "estorno") {
+          badge = '<span class="estorno-badge">↩ Estorno/Crédito</span>';
+          valorColor = '#10b981'; valorPrefix = '− ';
+        } else {
+          badge = '<span class="avulso-badge">Avulso</span>';
+          valorColor = '#a78bfa'; valorPrefix = '';
+        }
         const sub = it.tipo==="parcela" ? 'Faltam '+(parseInt(it.parcelaTotal)-parseInt(it.parcelaAtual))+' parcelas'
           : it.tipo==="recorrente" ? "Todo mes" : "";
         const autoTag = it.propagado ? ' <span style="font-size:9px;color:#555;font-style:italic;">auto</span>' : '';
@@ -837,7 +867,9 @@ function renderCartaoBody(c, itens) {
         }
         return '<div class="item-row"><div class="item-info"><div class="item-name">'+it.nome+' '+badge+autoTag+'</div>'+
           (catBadge ? '<div style="margin-top:3px;">'+catBadge+'</div>' : '')+
-          (it.dia?'<div class="item-sub" style="font-size:10px;color:#888;">'+String(it.dia).padStart(2,'0')+'/'+String(currentMonth+1).padStart(2,'0')+'</div>':'')+(sub?'<div class="item-sub">'+sub+'</div>':'')+'</div><span class="item-value">'+fmt(it.valor)+'</span><div class="item-actions"><button class="btn-icon" onclick="editItem(\'cartao\','+i+',\''+c.id+'\')">✏️</button><button class="btn-icon" onclick="removeCartaoItem(\''+c.id+'\','+i+')">🗑️</button></div></div>';
+          (it.dia?'<div class="item-sub" style="font-size:10px;color:#888;">'+String(it.dia).padStart(2,'0')+'/'+String(currentMonth+1).padStart(2,'0')+'</div>':'')+(sub?'<div class="item-sub">'+sub+'</div>':'')+
+          '</div><span class="item-value" style="color:'+valorColor+';">'+valorPrefix+fmt(it.valor)+'</span>'+
+          '<div class="item-actions"><button class="btn-icon" onclick="editItem(\'cartao\','+i+',\''+c.id+'\')">✏️</button><button class="btn-icon" onclick="removeCartaoItem(\''+c.id+'\','+i+')">🗑️</button></div></div>';
       }).join("");
 
   const proj = buildProjecao(c.id);
@@ -845,6 +877,7 @@ function renderCartaoBody(c, itens) {
   const projHtml = proj.length === 0 ? '<div class="empty-msg">Sem parcelas para projetar</div>'
     : proj.map(p => '<div class="proj-row'+(p.key===curKey?' proj-current':'')+'"><span class="proj-month">'+(p.key===curKey?'▶ ':'')+p.label+'</span><span class="proj-val">'+fmt(p.total)+'</span></div>').join("");
 
+  // FIX 2: tipo "estorno" adicionado ao select
   return '<div class="tabs">' +
     '<div class="tab active" id="tab-'+c.id+'-itens" onclick="switchTab(\''+c.id+'\',\'itens\')">Lancamentos</div>' +
     '<div class="tab" id="tab-'+c.id+'-proj" onclick="switchTab(\''+c.id+'\',\'proj\')">Projecao</div></div>' +
@@ -854,7 +887,12 @@ function renderCartaoBody(c, itens) {
     '<div class="form-row"><div class="form-group"><label>Descricao</label><input type="text" data-field="nome" placeholder="Ex: Academia"/></div>' +
     '<div class="form-group" style="max-width:120px;"><label>Valor (R$)</label><input type="text" data-field="valor" placeholder="0,00" inputmode="decimal"/></div><div class="form-group" style="max-width:70px;"><label>Dia (opcional)</label><input type="number" data-field="dia" placeholder="Ex: 13" min="1" max="31"/></div></div>' +
     '<div class="form-row">' +
-    '<div class="form-group"><label>Tipo</label><select data-field="tipo" onchange="toggleParcelaFields(this)"><option value="avulso">Avulso</option><option value="parcela">Parcelado</option><option value="recorrente">Recorrente</option></select></div>' +
+    '<div class="form-group"><label>Tipo</label><select data-field="tipo" onchange="toggleParcelaFields(this)">'+
+      '<option value="avulso">Avulso</option>'+
+      '<option value="parcela">Parcelado</option>'+
+      '<option value="recorrente">Recorrente</option>'+
+      '<option value="estorno">↩ Estorno / Crédito</option>'+
+    '</select></div>' +
     '<div class="form-group"><label>Categoria <span style="color:#555;font-size:10px;">(opcional)</span></label><select data-field="categoria">' + catOpts + '</select></div></div>' +
     '<div class="parcela-fields" style="display:none;"><div class="form-row">' +
     '<div class="form-group"><label>Parcela atual</label><input type="number" data-field="parcAtual" placeholder="Ex: 2" min="1"/></div>' +
@@ -970,8 +1008,9 @@ function removeCartaoItem(cartaoId, i) {
 function updateSummary(md) {
   const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
   const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
+  // FIX 2: usa calcTotalItens em todos os cartões
   let cartoes = 0;
-  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
+  CARTOES.forEach(c => { cartoes += calcTotalItens((md.cartoes[c.id]||{}).itens); });
   const saidas = fixas + cartoes;
   const saldo = entradas - saidas;
   const pctFixas = entradas > 0 ? Math.round((fixas/entradas)*100) : 0;
@@ -1024,8 +1063,7 @@ function saveModal() {
     md.fixas[idx].nome=nome; md.fixas[idx].valor=valor;
     md.fixas[idx].venc=document.getElementById("mVenc").value||"";
     md.fixas[idx].pago=document.getElementById("mPago").checked;
-  }
-  else {
+  } else {
     const it=md.cartoes[cartaoId].itens[idx];
     it.nome=nome; it.valor=valor;
     if(it.tipo==="parcela"){it.parcelaAtual=parseInt(document.getElementById("mParcAtual").value);it.parcelaTotal=parseInt(document.getElementById("mParcTotal").value);}
@@ -1042,7 +1080,8 @@ function getAllCartaoItens(md) {
   let all = [];
   CARTOES.forEach(c => {
     const itens = (md.cartoes[c.id]||{}).itens || [];
-    itens.forEach(it => all.push({ ...it, _cartao: c.nome }));
+    // FIX 2: exclui estornos do painel de categorias (são créditos, não gastos)
+    itens.filter(it => it.tipo !== "estorno").forEach(it => all.push({ ...it, _cartao: c.nome }));
   });
   return all;
 }
@@ -1161,7 +1200,7 @@ function removeCatCustom(i) {
   renderCategorias(getMonthData(currentKey()));
 }
 
-// ── Contas Correntes ──
+// ── Investimento ──
 function toggleInvest() {
   const body = document.getElementById("investBody");
   const arrow = document.getElementById("investArrow");
@@ -1345,14 +1384,11 @@ function updateCCField(id, field, val) {
   scheduleSave(); updateSummary(md); renderInvest(md);
 }
 
-function onCCChange() { const md = getMonthData(currentKey()); updateSummary(md); renderInvest(md); }
-function saveCCValor() { scheduleSave(); renderAll(); }
-
 function renderInvest(md) {
   const entradas = (md.entradas||[]).reduce((s,e)=>s+Number(e.valor||0),0);
   const fixas = (md.fixas||[]).reduce((s,f)=>s+Number(f.valor||0),0);
   let cartoes = 0;
-  CARTOES.forEach(c => { cartoes += ((md.cartoes[c.id]||{}).itens||[]).reduce((s,it)=>s+Number(it.valor||0),0); });
+  CARTOES.forEach(c => { cartoes += calcTotalItens((md.cartoes[c.id]||{}).itens); });
   const saidas = fixas + cartoes;
   const saldo = entradas - saidas;
   const pctSel = parseFloat(document.getElementById("inputPctInvest") ? document.getElementById("inputPctInvest").value : 20) || 20;
